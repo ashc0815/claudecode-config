@@ -1,0 +1,24 @@
+# 不同步：对话历史（太大）
+projects/*/**.jsonl
+projects/*/sessions-index.json
+
+# 不同步：缓存和临时文件
+cache/
+image-cache/
+paste-cache/
+shell-snapshots/
+stats-cache.json
+statsig/
+telemetry/
+downloads/
+debug/
+file-history/
+history.jsonl
+session-env/
+todos/
+backups/
+plugins/
+
+# 同步：skills + memory
+!skills/
+!projects/-Users-ashleychen/memory/

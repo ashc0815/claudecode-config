@@ -1,0 +1,11 @@
+  {
+    "env": {
+      "ANTHROPIC_AUTH_TOKEN": "sk-6bcf3bba792b43af4df0c48e8c1bba88e19e01ef47c5a5ea93714d04d81c2841",
+      "ANTHROPIC_BASE_URL": "https://code.aipor.cc",
+      "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+    },
+    "permissions": {
+      "allow": [],
+      "deny": []
+    }
+  }

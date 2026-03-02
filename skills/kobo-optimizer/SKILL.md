@@ -45,6 +45,16 @@ Structure: Hook → Story → Insight → CTA
 - Mark natural pauses with [PAUSE]
 - Inject 2 humanization markers: personal observation, specific detail, or "I noticed..."
 
+**LinkedIn Format Rules (learned from user feedback):**
+- Short sentences — optimized for mobile reading, not desktop paragraphs
+- Use deliberate line breaks and white space to create "thinking pauses"
+- Use bullet points (•) for lists of 3+ items — increases dwell time
+- Tone: "insider insight" not "industry report" — write like a practitioner, not an analyst
+- Emotional tension: open with pain point resonance before moving to diagnosis
+- CTA: end with a discussion-inviting question that signals the author has a POV, not just curiosity
+- Avoid: dense paragraph blocks, report-style prose, passive voice
+- The hook must create a gap (curiosity or contradiction) in the first 2 lines — LinkedIn shows ~2 lines before "see more"
+
 **X Thread Version (5-7 tweets)**
 - Tweet 1: Standalone hook — works without context, stops the scroll
 - Tweets 2-5: One concrete point per tweet, building tension

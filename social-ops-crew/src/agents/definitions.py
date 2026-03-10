@@ -1,8 +1,14 @@
-"""Agent definitions — maps YAML config to CrewAI Agent instances."""
+"""Agent factory — creates Agent instances from YAML config with appropriate tools.
+
+Uses the latest CrewAI 1.10.x API patterns:
+- LLM string format: "anthropic/claude-sonnet-4-6"
+- reasoning=True for analytical agents
+- inject_date=True for time-aware agents
+"""
 
 from __future__ import annotations
 
-from crewai import Agent, LLM
+from crewai import Agent
 from crewai_tools import SerperDevTool, WebsiteSearchTool
 
 from src.config import load_agents_config
@@ -23,18 +29,12 @@ from src.tools.linkedin_tool import (
     LinkedInPublishTool,
 )
 from src.tools.notification_tool import HumanApprovalTool, TelegramNotifyTool
+from src.tools.search_tool import BraveNewsTool, BraveSearchTool
 from src.tools.x_tool import XMetricsTool, XPublishThreadTool, XSearchTool
 
-# Claude as the backbone LLM
-claude_llm = LLM(
-    model="anthropic/claude-sonnet-4-6",
-    temperature=0.7,
-)
-
-claude_analytical = LLM(
-    model="anthropic/claude-sonnet-4-6",
-    temperature=0.3,  # Lower temp for analytical tasks
-)
+# Claude model strings (CrewAI 1.10.x format: "provider/model-id")
+CLAUDE_CREATIVE = "anthropic/claude-sonnet-4-6"   # temp 0.7 for content generation
+CLAUDE_ANALYTICAL = "anthropic/claude-sonnet-4-6"  # temp 0.3 for analysis
 
 
 def create_agents() -> dict[str, Agent]:
@@ -45,13 +45,16 @@ def create_agents() -> dict[str, Agent]:
         role=cfg["scout"]["role"],
         goal=cfg["scout"]["goal"],
         backstory=cfg["scout"]["backstory"],
+        llm=CLAUDE_CREATIVE,
         tools=[
-            SerperDevTool(),         # Web search
-            XSearchTool(),           # X/Twitter search
-            SaveScoutPoolTool(),     # Persist results
-            LoadStrategyConfigTool(),  # Read strategy keywords
+            BraveSearchTool(),
+            BraveNewsTool(),
+            XSearchTool(),
+            SerperDevTool(),
+            SaveScoutPoolTool(),
+            LoadStrategyConfigTool(),
         ],
-        llm=claude_llm,
+        inject_date=True,  # Auto-inject current date for timeliness scoring
         verbose=True,
     )
 
@@ -59,6 +62,7 @@ def create_agents() -> dict[str, Agent]:
         role=cfg["planner"]["role"],
         goal=cfg["planner"]["goal"],
         backstory=cfg["planner"]["backstory"],
+        llm=CLAUDE_ANALYTICAL,
         tools=[
             LoadScoutPoolTool(),
             LoadStrategyConfigTool(),
@@ -66,7 +70,8 @@ def create_agents() -> dict[str, Agent]:
             TelegramNotifyTool(),
             HumanApprovalTool(),
         ],
-        llm=claude_analytical,
+        reasoning=True,  # Enable strategic planning for topic selection
+        max_reasoning_attempts=3,
         verbose=True,
     )
 
@@ -74,11 +79,11 @@ def create_agents() -> dict[str, Agent]:
         role=cfg["creator"]["role"],
         goal=cfg["creator"]["goal"],
         backstory=cfg["creator"]["backstory"],
+        llm=CLAUDE_CREATIVE,
         tools=[
-            WebsiteSearchTool(),      # Deep research on sources
+            WebsiteSearchTool(),
             SaveContentPackageTool(),
         ],
-        llm=claude_llm,
         verbose=True,
     )
 
@@ -86,12 +91,12 @@ def create_agents() -> dict[str, Agent]:
         role=cfg["publisher"]["role"],
         goal=cfg["publisher"]["goal"],
         backstory=cfg["publisher"]["backstory"],
+        llm=CLAUDE_ANALYTICAL,
         tools=[
             LinkedInPublishTool(),
             XPublishThreadTool(),
             TelegramNotifyTool(),
         ],
-        llm=claude_analytical,
         verbose=True,
     )
 
@@ -99,14 +104,16 @@ def create_agents() -> dict[str, Agent]:
         role=cfg["engager"]["role"],
         goal=cfg["engager"]["goal"],
         backstory=cfg["engager"]["backstory"],
+        llm=CLAUDE_CREATIVE,
         tools=[
             LinkedInFeedTool(),
             LinkedInCommentTool(),
             LoadStrategyConfigTool(),
             SaveEngagerLogTool(),
-            HumanApprovalTool(),      # For Tier 1 comments
+            HumanApprovalTool(),
         ],
-        llm=claude_llm,
+        reasoning=True,  # Strategic comment targeting
+        inject_date=True,
         verbose=True,
     )
 
@@ -114,6 +121,7 @@ def create_agents() -> dict[str, Agent]:
         role=cfg["analyst"]["role"],
         goal=cfg["analyst"]["goal"],
         backstory=cfg["analyst"]["backstory"],
+        llm=CLAUDE_ANALYTICAL,
         tools=[
             LinkedInMetricsTool(),
             XMetricsTool(),
@@ -121,7 +129,7 @@ def create_agents() -> dict[str, Agent]:
             LoadRecentAnalyticsTool(),
             TelegramNotifyTool(),
         ],
-        llm=claude_analytical,
+        reasoning=True,
         verbose=True,
     )
 
@@ -129,13 +137,15 @@ def create_agents() -> dict[str, Agent]:
         role=cfg["strategist"]["role"],
         goal=cfg["strategist"]["goal"],
         backstory=cfg["strategist"]["backstory"],
+        llm=CLAUDE_ANALYTICAL,
         tools=[
             LoadRecentAnalyticsTool(),
             LoadStrategyConfigTool(),
             HumanApprovalTool(),
             TelegramNotifyTool(),
         ],
-        llm=claude_analytical,
+        reasoning=True,
+        max_reasoning_attempts=5,  # More reasoning budget for strategy
         verbose=True,
     )
 

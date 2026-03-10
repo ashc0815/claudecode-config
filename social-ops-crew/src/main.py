@@ -1,23 +1,12 @@
 """Social Ops Crew — Entry point.
 
 Usage:
-  # Run full daily pipeline (interactive)
-  python -m src.main daily
-
-  # Run engager only (single cycle)
-  python -m src.main engage
-
-  # Run analyst only (collect + report)
-  python -m src.main analyze
-
-  # Run weekly strategy review
-  python -m src.main strategy
-
-  # Start scheduler (continuous operation)
-  python -m src.main schedule
-
-  # Run scout only (test news discovery)
-  python -m src.main scout
+  python -m src.main daily       # Full daily pipeline (scout → plan → create → publish → engage → analyze)
+  python -m src.main engage      # Single engager cycle (scan LinkedIn feed → comment)
+  python -m src.main analyze     # Collect metrics + generate daily report
+  python -m src.main strategy    # Weekly strategy review (human approval required)
+  python -m src.main scout       # Test news discovery only
+  python -m src.main schedule    # Start continuous scheduler (daily + hourly)
 """
 
 from __future__ import annotations
@@ -51,37 +40,31 @@ def main() -> None:
         print(f"\nResult:\n{result}")
 
     elif command == "analyze":
-        from src.flows.crews import analyst_crew
+        from src.flows.crews import AnalystCrew
 
-        crew = analyst_crew()
-        result = crew.kickoff()
+        result = AnalystCrew().crew().kickoff()
         print(f"\nResult:\n{result}")
 
     elif command == "strategy":
-        from src.flows.crews import strategy_crew
+        from src.flows.crews import StrategyCrew
 
-        crew = strategy_crew()
-        result = crew.kickoff()
+        result = StrategyCrew().crew().kickoff()
         print(f"\nResult:\n{result}")
 
     elif command == "scout":
-        from src.flows.crews import content_crew
-
-        # Run only scout task by creating a minimal crew
-        from src.agents.definitions import create_agents
-        from src.tasks.definitions import create_tasks
-
-        agents = create_agents()
-        tasks = create_tasks(agents)
         from crewai import Crew, Process
 
-        scout_only = Crew(
-            agents=[agents["scout"]],
-            tasks=[tasks["scan_news"]],
+        from src.flows.crews import ContentCrew
+
+        # Run only the scout agent with its task
+        content = ContentCrew()
+        scout_crew = Crew(
+            agents=[content.scout()],
+            tasks=[content.scan_news()],
             process=Process.sequential,
             verbose=True,
         )
-        result = scout_only.kickoff()
+        result = scout_crew.kickoff()
         print(f"\nResult:\n{result}")
 
     elif command == "schedule":

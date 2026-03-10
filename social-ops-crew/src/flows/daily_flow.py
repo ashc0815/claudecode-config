@@ -1,12 +1,12 @@
-"""Daily Flow — orchestrates the full day's operations.
+"""Daily Flow — orchestrates the full day's operations using CrewAI 1.10.x Flow API.
 
 Schedule:
   06:00 UTC  Content Crew (scout → plan → create → publish)
   10:00-22:00 EST  Engager Crew (every hour)
   16:00 UTC  Analyst Crew (2h snapshot)
-  Next day   Analyst Crew (24h + 48h snapshots)
+  Sunday     Strategy Crew (weekly review)
 
-This module uses CrewAI Flows for state management between crews.
+Uses @start, @listen, @router decorators for event-driven orchestration.
 """
 
 from __future__ import annotations
@@ -16,19 +16,17 @@ from datetime import datetime
 from crewai.flow.flow import Flow, listen, router, start
 from pydantic import BaseModel
 
-from src.flows.crews import analyst_crew, content_crew, engager_crew, strategy_crew
+from src.flows.crews import AnalystCrew, ContentCrew, EngagerCrew, StrategyCrew
 
 
 class DailyState(BaseModel):
     """State passed between flow steps."""
 
     date: str = ""
-    scout_result: str = ""
-    plan_result: str = ""
     content_result: str = ""
-    publish_result: str = ""
     engager_result: str = ""
     analyst_result: str = ""
+    strategy_result: str = ""
     error: str = ""
 
 
@@ -48,8 +46,7 @@ class DailyOpsFlow(Flow[DailyState]):
         print(f"  Daily Content Pipeline — {self.state.date}")
         print(f"{'='*60}\n")
 
-        crew = content_crew()
-        result = crew.kickoff()
+        result = ContentCrew().crew().kickoff()
         self.state.content_result = str(result)
         return str(result)
 
@@ -60,8 +57,7 @@ class DailyOpsFlow(Flow[DailyState]):
         print(f"  Engager Cycle — {self.state.date}")
         print(f"{'='*60}\n")
 
-        crew = engager_crew()
-        result = crew.kickoff()
+        result = EngagerCrew().crew().kickoff()
         self.state.engager_result = str(result)
         return str(result)
 
@@ -72,8 +68,7 @@ class DailyOpsFlow(Flow[DailyState]):
         print(f"  Analytics Collection — {self.state.date}")
         print(f"{'='*60}\n")
 
-        crew = analyst_crew()
-        result = crew.kickoff()
+        result = AnalystCrew().crew().kickoff()
         self.state.analyst_result = str(result)
         return str(result)
 
@@ -91,8 +86,8 @@ class DailyOpsFlow(Flow[DailyState]):
         print(f"  Weekly Strategy Review — {self.state.date}")
         print(f"{'='*60}\n")
 
-        crew = strategy_crew()
-        result = crew.kickoff()
+        result = StrategyCrew().crew().kickoff()
+        self.state.strategy_result = str(result)
         return str(result)
 
     @listen("done")
@@ -109,6 +104,5 @@ class EngagerOnlyFlow(Flow[DailyState]):
 
     @start()
     def engage(self) -> str:
-        crew = engager_crew()
-        result = crew.kickoff()
+        result = EngagerCrew().crew().kickoff()
         return str(result)

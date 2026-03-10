@@ -19,19 +19,25 @@ from src.flows.daily_flow import DailyOpsFlow, EngagerOnlyFlow
 def run_daily_pipeline() -> None:
     """Run the full daily content pipeline."""
     print(f"[{datetime.now()}] Starting daily content pipeline...")
-    flow = DailyOpsFlow()
-    flow.kickoff()
+    try:
+        flow = DailyOpsFlow()
+        flow.kickoff()
+    except Exception as e:
+        print(f"[ERROR] Daily pipeline failed: {e}")
 
 
 def run_engager() -> None:
     """Run a single engager cycle."""
     now = datetime.now()
-    # Only run during work hours (07:00-22:00 EST ≈ 12:00-03:00 UTC)
+    # Only run during work hours (07:00-22:00 EST ~ 12:00-03:00+1 UTC)
     hour_est = (now.hour - 5) % 24  # Rough EST conversion
     if 7 <= hour_est <= 22:
         print(f"[{now}] Starting engager cycle...")
-        flow = EngagerOnlyFlow()
-        flow.kickoff()
+        try:
+            flow = EngagerOnlyFlow()
+            flow.kickoff()
+        except Exception as e:
+            print(f"[ERROR] Engager cycle failed: {e}")
     else:
         print(f"[{now}] Outside engagement hours, skipping.")
 
@@ -41,14 +47,14 @@ def run_scheduler() -> None:
 
     Schedule:
       - Daily pipeline at 06:00 UTC
-      - Engager every hour
+      - Engager every hour (07:00-22:00 EST only)
     """
     schedule.every().day.at("06:00").do(run_daily_pipeline)
     schedule.every().hour.do(run_engager)
 
     print("Scheduler started. Press Ctrl+C to stop.")
-    print(f"  Daily pipeline: 06:00 UTC")
-    print(f"  Engager: every hour (07:00-22:00 EST)")
+    print("  Daily pipeline: 06:00 UTC")
+    print("  Engager: every hour (07:00-22:00 EST)")
     print()
 
     while True:

@@ -1,10 +1,10 @@
-"""Crew definitions — 4 crews for different operational cycles.
+"""Crew definitions using CrewAI 1.10.x @CrewBase pattern.
 
-Architecture:
-  - Content Crew: daily content pipeline (scout → plan → create → publish)
-  - Engager Crew: hourly LinkedIn commenting (independent of content)
-  - Analyst Crew: data collection + daily report
-  - Strategy Crew: weekly strategy review
+Architecture: 4 independent crews for different operational cycles.
+  - ContentCrew: daily content pipeline (scout → plan → create → publish)
+  - EngagerCrew: hourly LinkedIn commenting (independent of content)
+  - AnalystCrew: data collection + daily report
+  - StrategyCrew: weekly strategy review
 
 Why separate crews instead of one big crew:
   1. Different schedules (hourly / daily / weekly)
@@ -14,69 +14,264 @@ Why separate crews instead of one big crew:
 
 from __future__ import annotations
 
-from crewai import Crew, Process
+from crewai import Agent, Crew, Process, Task
+from crewai.project import CrewBase, agent, crew, task
+from crewai_tools import SerperDevTool, WebsiteSearchTool
 
-from src.agents.definitions import create_agents
-from src.tasks.definitions import create_tasks
+from src.tools.data_tool import (
+    LoadRecentAnalyticsTool,
+    LoadScoutPoolTool,
+    LoadStrategyConfigTool,
+    SaveAnalyticsTool,
+    SaveContentPackageTool,
+    SaveDailyPlanTool,
+    SaveEngagerLogTool,
+    SaveScoutPoolTool,
+)
+from src.tools.linkedin_tool import (
+    LinkedInCommentTool,
+    LinkedInFeedTool,
+    LinkedInMetricsTool,
+    LinkedInPublishTool,
+)
+from src.tools.notification_tool import HumanApprovalTool, TelegramNotifyTool
+from src.tools.search_tool import BraveNewsTool, BraveSearchTool
+from src.tools.x_tool import XMetricsTool, XPublishThreadTool, XSearchTool
+
+CLAUDE = "anthropic/claude-sonnet-4-6"
+
+# Config paths relative to each @CrewBase class file location
+_AGENTS_CONFIG = "../config/agents.yaml"
+_TASKS_CONFIG = "../config/tasks.yaml"
 
 
-def _build() -> tuple[dict, dict]:
-    agents = create_agents()
-    tasks = create_tasks(agents)
-    return agents, tasks
+# ─── Content Crew (Daily) ────────────────────────────────────────────
 
-
-def content_crew() -> Crew:
+@CrewBase
+class ContentCrew:
     """Daily content pipeline: scout → plan → create → publish."""
-    agents, tasks = _build()
-    return Crew(
-        agents=[agents["scout"], agents["planner"], agents["creator"], agents["publisher"]],
-        tasks=[
-            tasks["scan_news"],
-            tasks["plan_daily"],
-            tasks["create_content"],
-            tasks["publish_content"],
-        ],
-        process=Process.sequential,  # Each step depends on the previous
-        verbose=True,
-        memory=True,           # Enable CrewAI memory for cross-session learning
-        planning=True,         # Enable planning mode for better task decomposition
-        planning_llm="anthropic/claude-sonnet-4-6",
-    )
+
+    agents_config = _AGENTS_CONFIG
+    tasks_config = _TASKS_CONFIG
+
+    @agent
+    def scout(self) -> Agent:
+        return Agent(
+            config=self.agents_config["scout"],
+            llm=CLAUDE,
+            tools=[
+                BraveSearchTool(),
+                BraveNewsTool(),
+                XSearchTool(),
+                SerperDevTool(),
+                SaveScoutPoolTool(),
+                LoadStrategyConfigTool(),
+            ],
+            inject_date=True,
+            verbose=True,
+        )
+
+    @agent
+    def planner(self) -> Agent:
+        return Agent(
+            config=self.agents_config["planner"],
+            llm=CLAUDE,
+            tools=[
+                LoadScoutPoolTool(),
+                LoadStrategyConfigTool(),
+                SaveDailyPlanTool(),
+                TelegramNotifyTool(),
+                HumanApprovalTool(),
+            ],
+            reasoning=True,
+            verbose=True,
+        )
+
+    @agent
+    def creator(self) -> Agent:
+        return Agent(
+            config=self.agents_config["creator"],
+            llm=CLAUDE,
+            tools=[WebsiteSearchTool(), SaveContentPackageTool()],
+            verbose=True,
+        )
+
+    @agent
+    def publisher(self) -> Agent:
+        return Agent(
+            config=self.agents_config["publisher"],
+            llm=CLAUDE,
+            tools=[
+                LinkedInPublishTool(),
+                XPublishThreadTool(),
+                TelegramNotifyTool(),
+            ],
+            verbose=True,
+        )
+
+    @task
+    def scan_news(self) -> Task:
+        return Task(config=self.tasks_config["scan_news"])
+
+    @task
+    def plan_daily_content(self) -> Task:
+        return Task(
+            config=self.tasks_config["plan_daily_content"],
+            context=[self.scan_news()],
+        )
+
+    @task
+    def create_content(self) -> Task:
+        return Task(
+            config=self.tasks_config["create_content"],
+            context=[self.plan_daily_content()],
+            human_input=True,  # Final content review before publishing
+        )
+
+    @task
+    def publish_content(self) -> Task:
+        return Task(
+            config=self.tasks_config["publish_content"],
+            context=[self.create_content()],
+        )
+
+    @crew
+    def crew(self) -> Crew:
+        return Crew(
+            agents=self.agents,   # Auto-collected from @agent methods
+            tasks=self.tasks,     # Auto-collected from @task methods
+            process=Process.sequential,
+            verbose=True,
+            memory=True,
+            planning=True,
+            planning_llm=CLAUDE,
+        )
 
 
-def engager_crew() -> Crew:
+# ─── Engager Crew (Hourly) ───────────────────────────────────────────
+
+@CrewBase
+class EngagerCrew:
     """Hourly LinkedIn engagement: scan feed → generate comments → post."""
-    agents, tasks = _build()
-    return Crew(
-        agents=[agents["engager"]],
-        tasks=[tasks["scan_and_comment"]],
-        process=Process.sequential,
-        verbose=True,
-        memory=True,  # Remember what was already commented on
-    )
+
+    agents_config = _AGENTS_CONFIG
+    tasks_config = _TASKS_CONFIG
+
+    @agent
+    def engager(self) -> Agent:
+        return Agent(
+            config=self.agents_config["engager"],
+            llm=CLAUDE,
+            tools=[
+                LinkedInFeedTool(),
+                LinkedInCommentTool(),
+                LoadStrategyConfigTool(),
+                SaveEngagerLogTool(),
+                HumanApprovalTool(),
+            ],
+            reasoning=True,
+            inject_date=True,
+            verbose=True,
+        )
+
+    @task
+    def scan_and_comment(self) -> Task:
+        return Task(config=self.tasks_config["scan_and_comment"])
+
+    @crew
+    def crew(self) -> Crew:
+        return Crew(
+            agents=self.agents,
+            tasks=self.tasks,
+            process=Process.sequential,
+            verbose=True,
+            memory=True,  # Remember what was already commented on
+        )
 
 
-def analyst_crew() -> Crew:
+# ─── Analyst Crew (Daily) ────────────────────────────────────────────
+
+@CrewBase
+class AnalystCrew:
     """Data collection + daily report."""
-    agents, tasks = _build()
-    return Crew(
-        agents=[agents["analyst"]],
-        tasks=[
-            tasks["collect_metrics"],
-            tasks["daily_report"],
-        ],
-        process=Process.sequential,
-        verbose=True,
-    )
+
+    agents_config = _AGENTS_CONFIG
+    tasks_config = _TASKS_CONFIG
+
+    @agent
+    def analyst(self) -> Agent:
+        return Agent(
+            config=self.agents_config["analyst"],
+            llm=CLAUDE,
+            tools=[
+                LinkedInMetricsTool(),
+                XMetricsTool(),
+                SaveAnalyticsTool(),
+                LoadRecentAnalyticsTool(),
+                TelegramNotifyTool(),
+            ],
+            reasoning=True,
+            verbose=True,
+        )
+
+    @task
+    def collect_metrics(self) -> Task:
+        return Task(config=self.tasks_config["collect_metrics"])
+
+    @task
+    def generate_daily_report(self) -> Task:
+        return Task(
+            config=self.tasks_config["generate_daily_report"],
+            context=[self.collect_metrics()],
+        )
+
+    @crew
+    def crew(self) -> Crew:
+        return Crew(
+            agents=self.agents,
+            tasks=self.tasks,
+            process=Process.sequential,
+            verbose=True,
+        )
 
 
-def strategy_crew() -> Crew:
+# ─── Strategy Crew (Weekly) ──────────────────────────────────────────
+
+@CrewBase
+class StrategyCrew:
     """Weekly strategy review — always requires human approval."""
-    agents, tasks = _build()
-    return Crew(
-        agents=[agents["strategist"]],
-        tasks=[tasks["weekly_review"]],
-        process=Process.sequential,
-        verbose=True,
-    )
+
+    agents_config = _AGENTS_CONFIG
+    tasks_config = _TASKS_CONFIG
+
+    @agent
+    def strategist(self) -> Agent:
+        return Agent(
+            config=self.agents_config["strategist"],
+            llm=CLAUDE,
+            tools=[
+                LoadRecentAnalyticsTool(),
+                LoadStrategyConfigTool(),
+                HumanApprovalTool(),
+                TelegramNotifyTool(),
+            ],
+            reasoning=True,
+            max_reasoning_attempts=5,
+            verbose=True,
+        )
+
+    @task
+    def weekly_strategy_review(self) -> Task:
+        return Task(
+            config=self.tasks_config["weekly_strategy_review"],
+            human_input=True,  # Strategy changes always need human approval
+        )
+
+    @crew
+    def crew(self) -> Crew:
+        return Crew(
+            agents=self.agents,
+            tasks=self.tasks,
+            process=Process.sequential,
+            verbose=True,
+        )

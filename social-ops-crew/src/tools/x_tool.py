@@ -1,4 +1,4 @@
-"""X/Twitter API v2 tools for publishing threads and collecting metrics."""
+"""X/Twitter API v2 tools — publish threads, search, metrics."""
 
 from __future__ import annotations
 
@@ -6,105 +6,119 @@ import os
 from typing import Any
 
 import httpx
-from crewai.tools import BaseTool
-from pydantic import Field
 
 
-class XBaseTool(BaseTool):
-    """Base class with shared X API auth."""
-
-    bearer_token: str = Field(default="")
-
-    def model_post_init(self, __context: Any) -> None:
-        self.bearer_token = self.bearer_token or os.environ.get("X_BEARER_TOKEN", "")
-
-    def _headers(self) -> dict:
-        return {
-            "Authorization": f"Bearer {self.bearer_token}",
-            "Content-Type": "application/json",
-        }
+def _headers() -> dict:
+    token = os.environ.get("X_BEARER_TOKEN", "")
+    return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
 
-class XPublishThreadTool(XBaseTool):
-    name: str = "x_publish_thread"
-    description: str = (
-        "Publish a thread on X/Twitter. Input: 'tweets' (list of strings, "
-        "each <= 280 chars). Posts them as a reply chain."
+# ── Handlers ────────────────────────────────────────────────────────
+
+def x_publish_thread(tweets: list[str]) -> str:
+    access_token = os.environ.get("X_ACCESS_TOKEN", "")
+    if not access_token:
+        return "Error: X_ACCESS_TOKEN not configured"
+
+    posted_ids = []
+    reply_to = None
+
+    for i, tweet_text in enumerate(tweets):
+        if len(tweet_text) > 280:
+            return f"Error: Tweet {i + 1} exceeds 280 chars ({len(tweet_text)})"
+
+        payload: dict[str, Any] = {"text": tweet_text}
+        if reply_to:
+            payload["reply"] = {"in_reply_to_tweet_id": reply_to}
+
+        resp = httpx.post("https://api.x.com/2/tweets", headers=_headers(), json=payload)
+        resp.raise_for_status()
+        tweet_id = resp.json()["data"]["id"]
+        posted_ids.append(tweet_id)
+        reply_to = tweet_id
+
+    return f"Thread published: {len(posted_ids)} tweets. First ID: {posted_ids[0]}"
+
+
+def x_search(query: str, max_results: int = 20) -> str:
+    resp = httpx.get(
+        "https://api.x.com/2/tweets/search/recent",
+        headers=_headers(),
+        params={
+            "query": query,
+            "max_results": min(max_results, 100),
+            "tweet.fields": "created_at,public_metrics,author_id",
+        },
     )
-
-    def _run(self, tweets: list[str]) -> str:
-        # X API v2 uses OAuth 1.0a for posting — need user context tokens
-        access_token = os.environ.get("X_ACCESS_TOKEN", "")
-        access_secret = os.environ.get("X_ACCESS_SECRET", "")
-
-        if not access_token:
-            return "Error: X_ACCESS_TOKEN not configured"
-
-        posted_ids = []
-        reply_to = None
-
-        for i, tweet_text in enumerate(tweets):
-            if len(tweet_text) > 280:
-                return f"Error: Tweet {i + 1} exceeds 280 chars ({len(tweet_text)})"
-
-            payload: dict[str, Any] = {"text": tweet_text}
-            if reply_to:
-                payload["reply"] = {"in_reply_to_tweet_id": reply_to}
-
-            resp = httpx.post(
-                "https://api.x.com/2/tweets",
-                headers=self._headers(),
-                json=payload,
-            )
-            resp.raise_for_status()
-            tweet_id = resp.json()["data"]["id"]
-            posted_ids.append(tweet_id)
-            reply_to = tweet_id
-
-        return f"Thread published: {len(posted_ids)} tweets. First ID: {posted_ids[0]}"
+    resp.raise_for_status()
+    results = []
+    for t in resp.json().get("data", []):
+        results.append({
+            "id": t["id"],
+            "text": t["text"],
+            "metrics": t.get("public_metrics", {}),
+            "created_at": t.get("created_at"),
+        })
+    return str(results)
 
 
-class XSearchTool(XBaseTool):
-    name: str = "x_search"
-    description: str = (
-        "Search recent tweets on X/Twitter. Input: 'query' (search string). "
-        "Returns recent tweets matching the query."
+def x_metrics(tweet_id: str) -> str:
+    resp = httpx.get(
+        f"https://api.x.com/2/tweets/{tweet_id}",
+        headers=_headers(),
+        params={"tweet.fields": "public_metrics"},
     )
+    resp.raise_for_status()
+    return str(resp.json()["data"].get("public_metrics", {}))
 
-    def _run(self, query: str, max_results: int = 20) -> str:
-        resp = httpx.get(
-            "https://api.x.com/2/tweets/search/recent",
-            headers=self._headers(),
-            params={
-                "query": query,
-                "max_results": min(max_results, 100),
-                "tweet.fields": "created_at,public_metrics,author_id",
+
+# ── Schemas ─────────────────────────────────────────────────────────
+
+X_PUBLISH_THREAD_SCHEMA = {
+    "name": "x_publish_thread",
+    "description": "Publish a thread on X/Twitter. Posts tweets as a reply chain.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "tweets": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "List of tweet texts (each <= 280 chars)",
             },
-        )
-        resp.raise_for_status()
-        tweets = resp.json().get("data", [])
-        results = []
-        for t in tweets:
-            results.append(
-                {
-                    "id": t["id"],
-                    "text": t["text"],
-                    "metrics": t.get("public_metrics", {}),
-                    "created_at": t.get("created_at"),
-                }
-            )
-        return str(results)
+        },
+        "required": ["tweets"],
+    },
+}
 
+X_SEARCH_SCHEMA = {
+    "name": "x_search",
+    "description": "Search recent tweets on X/Twitter.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "Search query"},
+            "max_results": {"type": "integer", "default": 20},
+        },
+        "required": ["query"],
+    },
+}
 
-class XMetricsTool(XBaseTool):
-    name: str = "x_metrics"
-    description: str = "Get engagement metrics for a tweet. Input: 'tweet_id'."
+X_METRICS_SCHEMA = {
+    "name": "x_metrics",
+    "description": "Get engagement metrics for a tweet.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "tweet_id": {"type": "string", "description": "Tweet ID"},
+        },
+        "required": ["tweet_id"],
+    },
+}
 
-    def _run(self, tweet_id: str) -> str:
-        resp = httpx.get(
-            f"https://api.x.com/2/tweets/{tweet_id}",
-            headers=self._headers(),
-            params={"tweet.fields": "public_metrics"},
-        )
-        resp.raise_for_status()
-        return str(resp.json()["data"].get("public_metrics", {}))
+# ── Registry ────────────────────────────────────────────────────────
+
+X_TOOLS = {
+    "x_publish_thread": (X_PUBLISH_THREAD_SCHEMA, x_publish_thread),
+    "x_search": (X_SEARCH_SCHEMA, x_search),
+    "x_metrics": (X_METRICS_SCHEMA, x_metrics),
+}

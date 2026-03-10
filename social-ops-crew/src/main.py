@@ -1,4 +1,4 @@
-"""Social Ops Crew — Entry point.
+"""Social Ops — Entry point.
 
 Usage:
   python -m src.main daily       # Full daily pipeline (scout → plan → create → publish → engage → analyze)
@@ -26,45 +26,43 @@ def main() -> None:
     command = sys.argv[1]
 
     if command == "daily":
-        from src.flows.daily_flow import DailyOpsFlow
+        from src.flows.daily_flow import run_daily_ops
 
-        flow = DailyOpsFlow()
-        result = flow.kickoff()
+        result = run_daily_ops()
         print(f"\nResult:\n{result}")
 
     elif command == "engage":
-        from src.flows.daily_flow import EngagerOnlyFlow
+        from src.flows.crews import run_engager_cycle
 
-        flow = EngagerOnlyFlow()
-        result = flow.kickoff()
+        result = run_engager_cycle()
         print(f"\nResult:\n{result}")
 
     elif command == "analyze":
-        from src.flows.crews import AnalystCrew
+        from src.flows.crews import run_analyst
 
-        result = AnalystCrew().crew().kickoff()
+        result = run_analyst()
         print(f"\nResult:\n{result}")
 
     elif command == "strategy":
-        from src.flows.crews import StrategyCrew
+        from src.flows.crews import run_strategy_review
 
-        result = StrategyCrew().crew().kickoff()
+        result = run_strategy_review()
         print(f"\nResult:\n{result}")
 
     elif command == "scout":
-        from crewai import Crew, Process
+        from src.agents.definitions import get_agents
+        from src.runner import run_agent
 
-        from src.flows.crews import ContentCrew
-
-        # Run only the scout agent with its task
-        content = ContentCrew()
-        scout_crew = Crew(
-            agents=[content.scout()],
-            tasks=[content.scan_news()],
-            process=Process.sequential,
-            verbose=True,
+        agent = get_agents()["scout"]
+        result = run_agent(
+            system_prompt=agent["system_prompt"],
+            user_message=(
+                "Scan industry news for the past 12 hours. "
+                "Find top 10-15 candidates in AI, fintech, and future-of-work."
+            ),
+            tools=agent["tools"],
+            temperature=agent["temperature"],
         )
-        result = scout_crew.kickoff()
         print(f"\nResult:\n{result}")
 
     elif command == "schedule":

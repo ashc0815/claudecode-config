@@ -1,10 +1,4 @@
-"""Scheduler — runs the daily flow and hourly engager on schedule.
-
-Uses the `schedule` library for simplicity. For production, consider:
-- APScheduler for more robust scheduling
-- Celery + Redis for distributed task queue
-- GitHub Actions scheduled workflows for serverless
-"""
+"""Scheduler — runs daily flow and hourly engager on schedule."""
 
 from __future__ import annotations
 
@@ -13,48 +7,48 @@ from datetime import datetime
 
 import schedule
 
-from src.flows.daily_flow import DailyOpsFlow, EngagerOnlyFlow
+from src.flows.crews import run_analyst, run_content_pipeline, run_engager_cycle
 
 
-def run_daily_pipeline() -> None:
-    """Run the full daily content pipeline."""
+def _run_daily() -> None:
     print(f"[{datetime.now()}] Starting daily content pipeline...")
     try:
-        flow = DailyOpsFlow()
-        flow.kickoff()
+        run_content_pipeline()
     except Exception as e:
         print(f"[ERROR] Daily pipeline failed: {e}")
 
 
-def run_engager() -> None:
-    """Run a single engager cycle."""
+def _run_engager() -> None:
     now = datetime.now()
-    # Only run during work hours (07:00-22:00 EST ~ 12:00-03:00+1 UTC)
-    hour_est = (now.hour - 5) % 24  # Rough EST conversion
+    hour_est = (now.hour - 5) % 24
     if 7 <= hour_est <= 22:
         print(f"[{now}] Starting engager cycle...")
         try:
-            flow = EngagerOnlyFlow()
-            flow.kickoff()
+            run_engager_cycle()
         except Exception as e:
             print(f"[ERROR] Engager cycle failed: {e}")
     else:
         print(f"[{now}] Outside engagement hours, skipping.")
 
 
-def run_scheduler() -> None:
-    """Start the scheduler loop.
+def _run_analyst() -> None:
+    print(f"[{datetime.now()}] Starting analytics collection...")
+    try:
+        run_analyst()
+    except Exception as e:
+        print(f"[ERROR] Analyst failed: {e}")
 
-    Schedule:
-      - Daily pipeline at 06:00 UTC
-      - Engager every hour (07:00-22:00 EST only)
-    """
-    schedule.every().day.at("06:00").do(run_daily_pipeline)
-    schedule.every().hour.do(run_engager)
+
+def run_scheduler() -> None:
+    """Start the scheduler loop."""
+    schedule.every().day.at("06:00").do(_run_daily)
+    schedule.every().hour.do(_run_engager)
+    schedule.every().day.at("16:00").do(_run_analyst)
 
     print("Scheduler started. Press Ctrl+C to stop.")
     print("  Daily pipeline: 06:00 UTC")
     print("  Engager: every hour (07:00-22:00 EST)")
+    print("  Analyst: 16:00 UTC")
     print()
 
     while True:

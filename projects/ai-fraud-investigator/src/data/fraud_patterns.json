@@ -1,0 +1,75 @@
+{
+  "typologies": [
+    {
+      "id": "structuring",
+      "name": "Structuring / Smurfing",
+      "description": "Breaking large transactions into smaller ones to avoid reporting thresholds",
+      "indicators": [
+        "Multiple transactions just below $10,000 (CTR threshold)",
+        "Same sender, multiple transactions within short time window",
+        "Round or near-round amounts repeated"
+      ],
+      "threshold_amount": 10000,
+      "min_transaction_count": 3,
+      "time_window_hours": 24
+    },
+    {
+      "id": "round_tripping",
+      "name": "Round-Tripping / Circular Flows",
+      "description": "Funds flowing in a circle back to the originator through intermediaries",
+      "indicators": [
+        "A sends to B, B sends to C, C sends back to A",
+        "Similar amounts at each hop (minus small fees)",
+        "Transactions occur in rapid succession"
+      ],
+      "min_cycle_length": 3,
+      "amount_variance_tolerance": 0.05
+    },
+    {
+      "id": "rapid_movement",
+      "name": "Rapid Fund Movement",
+      "description": "Funds received and immediately transferred out (pass-through)",
+      "indicators": [
+        "Incoming transfer followed by outgoing transfer within minutes",
+        "Account balance returns to near-zero after each cycle",
+        "No legitimate business purpose apparent"
+      ],
+      "max_dwell_time_minutes": 30,
+      "balance_return_threshold": 0.1
+    },
+    {
+      "id": "layering",
+      "name": "Layering",
+      "description": "Complex chains of transactions to obscure fund origin",
+      "indicators": [
+        "Multiple intermediary accounts with no other activity",
+        "Progressively smaller amounts at each layer",
+        "Different transaction types used (transfer, payment, cash-out)"
+      ],
+      "min_layers": 3
+    },
+    {
+      "id": "velocity_abuse",
+      "name": "Velocity Abuse",
+      "description": "Abnormally high transaction frequency for account profile",
+      "indicators": [
+        "Transaction count exceeds 3x historical average",
+        "Sudden spike in activity after dormant period",
+        "High-frequency small transactions"
+      ],
+      "frequency_multiplier": 3.0
+    },
+    {
+      "id": "dormant_activation",
+      "name": "Dormant Account Activation",
+      "description": "Sudden high-value activity on previously inactive account",
+      "indicators": [
+        "No transactions for 90+ days, then large transfer",
+        "Account ownership or contact details recently changed",
+        "First transaction is high-value outgoing transfer"
+      ],
+      "dormant_days": 90,
+      "activation_amount_threshold": 5000
+    }
+  ]
+}

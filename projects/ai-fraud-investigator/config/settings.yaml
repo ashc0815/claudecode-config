@@ -1,0 +1,27 @@
+llm:
+  model: claude-sonnet-4-6
+  max_tokens: 4096
+  temperature: 0.2  # Low temperature for consistent analysis
+
+agents:
+  pattern_detector:
+    confidence_threshold: 0.7
+    max_patterns_per_transaction: 5
+  context_enricher:
+    max_related_entities: 20
+    network_depth: 2  # Degrees of separation to explore
+  risk_assessor:
+    risk_levels: [low, medium, high, critical]
+    false_positive_tolerance: 0.15  # Target <15% false positive rate
+  report_generator:
+    format: sar  # SAR (Suspicious Activity Report) format
+    include_evidence_chain: true
+    include_network_visualization: true
+
+data:
+  synthetic_dataset: paysim
+  fraud_patterns_path: src/data/fraud_patterns.json
+
+orchestrator:
+  max_retries: 2  # Max retries per stage on failure
+  verification_enabled: true  # Enable Plan-Execute-Verify loop

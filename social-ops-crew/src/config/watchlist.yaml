@@ -1,0 +1,40 @@
+# Engager Watchlist — who to monitor and comment on
+# Strategist Agent can suggest additions; human approves changes.
+
+linkedin:
+  tier_1:  # 大 V — comment for exposure (always requires human approval)
+    - name: "Satya Nadella"
+      linkedin_id: "satyanadella"
+      topics: ["AI", "enterprise", "Microsoft"]
+      auto_approve: false
+
+    - name: "Jensen Huang"
+      linkedin_id: "jenhsunhuang"
+      topics: ["AI chips", "GPU", "NVIDIA"]
+      auto_approve: false
+
+    # Add your Tier 1 targets here
+
+  tier_2:  # Peers — comment for relationship building
+    []
+    # - name: "Peer Name"
+    #   linkedin_id: "..."
+    #   topics: ["fintech", "AI agents"]
+    #   auto_approve: true
+
+  tier_3:  # Own post replies
+    auto_reply: true
+    max_reply_delay_hours: 2
+    reply_style: "grateful + substantive"
+
+  topic_tags:  # Comment on posts with these tags, regardless of author
+    - "#AIinFinance"
+    - "#FutureOfWork"
+    - "#FinTech"
+    - "#GenerativeAI"
+    - "#AIAgents"
+  topic_min_score: 7  # Only comment if score > this
+
+x:
+  # X engagement watchlist (future — Phase 2+)
+  enabled: false

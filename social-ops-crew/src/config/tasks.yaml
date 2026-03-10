@@ -1,0 +1,125 @@
+# CrewAI Task definitions
+# Each task is assigned to an agent and defines expected output
+
+scan_news:
+  description: >
+    Scan industry news sources, X/Twitter KOL posts, Reddit threads, and
+    LinkedIn influencer updates for the past 12 hours. For each candidate:
+    - Score relevance (1-10) based on strategy keywords
+    - Assess timeliness (breaking / recent / evergreen)
+    - Identify 2-3 potential content angles
+    - Rate platform fit (linkedin / x / xiaohongshu)
+    Return top 10-15 candidates sorted by score.
+  expected_output: >
+    A YAML-formatted list of 10-15 candidate stories, each with:
+    id, source, url, title, relevance_score, timeliness, angle_potential (list),
+    platform_fit (dict), tier (1-3).
+  agent: scout
+
+plan_daily_content:
+  description: >
+    Given the scout pool and strategy config, create today's publishing plan:
+    - Select 2-3 topics (respecting weekly mix targets)
+    - Assign time slots and platforms
+    - Choose hook formulas (rotating, weighted by strategy config)
+    - Check content-memory for topic deduplication (30-day window)
+    - Explain selection reasoning for human review
+  expected_output: >
+    A YAML-formatted daily plan with 2-3 post slots, each containing:
+    slot name, scheduled time, mode (--deep/--fast), topic, source_id,
+    platform(s), hook_formula, and reasoning.
+  agent: planner
+  context:
+    - scan_news
+
+create_content:
+  description: >
+    For each post in the daily plan, generate publish-ready content:
+    - --deep mode: research → analyze → stress-test → script
+    - --fast mode: analyze → script
+    Generate platform-native formats:
+    - LinkedIn: text + hashtags + image prompt
+    - X: thread format with tweet numbering and char count
+    - Xiaohongshu: Chinese script + cover text + tags (if applicable)
+    Run 8-point quality gate on each piece.
+  expected_output: >
+    Content packages for each planned post, containing platform-specific
+    scripts, quality scores (X/8), and status = "pending_review".
+  agent: creator
+  context:
+    - plan_daily_content
+
+publish_content:
+  description: >
+    Publish approved content packages to their designated platforms:
+    - Check package status = "approved"
+    - Post via platform API at scheduled time
+    - Record returned post_id
+    - Retry up to 2 times on failure
+    - Log publication event
+  expected_output: >
+    Publication confirmation for each post: platform, post_id, timestamp,
+    status (success/failed), and any error details.
+  agent: publisher
+  context:
+    - create_content
+
+scan_and_comment:
+  description: >
+    Scan LinkedIn feed for high-value posts to comment on:
+    1. Fetch latest 50-100 feed posts
+    2. Filter by watchlist and topic tags
+    3. Skip already-commented posts
+    4. Score remaining posts (author influence, topic relevance, timeliness,
+       comment competition)
+    5. For posts scoring > 7/10, generate a substantive comment:
+       - 30-150 words
+       - Must include: specific data/experience/question
+       - Must NOT include: self-promotion, generic praise
+    6. Also reply to any new comments on own posts (Tier 3)
+    Respect rate limits: max 5/hour, 120s between comments.
+  expected_output: >
+    List of comments posted: target_post_author, target_post_topic,
+    comment_text, tier, timestamp. Plus list of Tier 3 replies sent.
+  agent: engager
+
+collect_metrics:
+  description: >
+    Collect performance metrics for all posts published in the tracking window:
+    - 2h snapshot: early signal (impressions, initial engagement)
+    - 24h snapshot: standard metrics
+    - 48h snapshot: final metrics
+    Also collect engager comment metrics (impressions, likes, replies).
+    Calculate derived metrics: save_rate, engagement_rate, viral_coefficient.
+  expected_output: >
+    YAML analytics file per post with metrics at each snapshot interval,
+    plus derived metrics. Engager daily summary with per-tier breakdown.
+  agent: analyst
+
+generate_daily_report:
+  description: >
+    Generate a daily performance report summarizing:
+    - Posts published today with key metrics
+    - Best and worst performers with likely causes
+    - Engager stats (comments posted, top-performing comment)
+    - 7-day rolling averages
+    - Action items for the strategist
+    Format for human readability (push via notification).
+  expected_output: >
+    Formatted daily report with sections: Summary, Best Performer,
+    Underperformer, Engager Highlights, Rolling Averages, Action Items.
+  agent: analyst
+
+weekly_strategy_review:
+  description: >
+    Analyze all daily reports from the past week to recommend strategy updates:
+    - Rank hook formulas by performance
+    - Identify best/worst topic categories
+    - Assess platform-specific trends
+    - Review engager ROI (comments → profile visits → followers)
+    - Recommend changes to strategy-config.yaml
+    Present recommendations with data backing. Human approves before applying.
+  expected_output: >
+    Strategy update proposal: current config values, recommended new values,
+    data justification for each change, and confidence level (high/medium/low).
+  agent: strategist

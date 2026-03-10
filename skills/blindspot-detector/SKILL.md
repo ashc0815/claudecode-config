@@ -75,7 +75,31 @@ Count critical gaps:
 | 1-2 CRITICAL | — | REVISE: fix critical gaps first, then proceed |
 | 3+ CRITICAL | — | NEEDS RESEARCH: run `/brave-research` on specific gaps, then re-run blindspot-detector |
 
-The verdict is non-negotiable — do not proceed to script writing if verdict is NEEDS RESEARCH.
+The verdict is non-negotiable in manual mode — do not proceed to script writing if verdict is NEEDS RESEARCH.
+
+### Autopilot Decision Rules (when called from --autopilot pipeline)
+When running inside an autopilot pipeline, do NOT stop to ask the user. Instead:
+
+| Verdict | Auto-Decision |
+|---------|---------------|
+| PROCEED | Pass through immediately with north star reflection. |
+| REVISE (1-2 CRITICAL) | Auto-apply the top 3 fixes using these rules: |
+| | - "Needs personal story" → switch to observer framing ("I've been watching...", "I noticed...") — never fabricate experience |
+| | - "Needs data" → if brave-research tagged "data-light", accept and use counter-intuitive claim formula instead |
+| | - "Differentiation weak" → sharpen the product thinking angle: reframe as a system, tradeoff, or value chain insight |
+| | - "Audience assumption wrong" → narrow to the most specific pain point that IS validated |
+| | After auto-fixes, do NOT re-run blindspot-detector. Proceed with fixes applied. |
+| NEEDS RESEARCH (3+ CRITICAL) | Auto-run ONE targeted `/brave-research` on the single most critical gap. Then auto-downgrade remaining gaps: observer framing for missing stories, "data-light" tag for missing stats. Proceed — do NOT loop more than once. |
+
+**Auto-downgrade priority (when multiple gaps exist):**
+1. Fix the gap with the highest credibility impact first
+2. Downgrade remaining gaps to observer framing
+3. Flag all downgrades in the output header so the user sees them in the final review
+
+**Quality floor (non-negotiable even in autopilot):**
+- Never proceed with a claim that contradicts found evidence — either address the contradiction or drop the claim
+- Never suppress a CRITICAL counterargument — it must be addressed in the script, even if briefly
+- The north star reflection is always generated — it's the single most important input for kobo-optimizer
 
 ### Phase 4 — REFLECT
 After issuing the verdict, add one reflection:

@@ -89,6 +89,33 @@ After drafting, run the critic pass. Do NOT show the draft yet. Evaluate against
 - If 5-6 checks pass → revise the failing elements, then re-check (max 1 revision loop)
 - If <5 checks pass → do not output. Identify the root cause and ask user for the missing input (usually: personal story or specific data point)
 
+### Autopilot Decision Rules (when called from --autopilot pipeline)
+When running inside an autopilot pipeline, do NOT stop to ask the user. Instead:
+
+| Situation | Auto-Decision |
+|-----------|---------------|
+| 7-8 checks pass | Proceed to Quality Gate. |
+| 5-6 checks pass | Auto-revise failing elements (max 1 loop), then proceed. |
+| <5 checks pass | Do NOT ask user. Auto-diagnose root cause and apply: |
+| | - Missing personal story → use observer framing anchor ("I've been watching...", "I noticed...") |
+| | - Missing data point → use the best available from brave-research output, even if Tier 3 (with caveat tag). If no data at all, use counter-intuitive claim formula. |
+| | - Hook too generic → inject the most specific element available: named company, specific number, or concrete role title |
+| | - Sounds AI-generated → add 1-2 conversational markers: "here's the thing", "and honestly", sentence fragments, rhetorical pauses |
+| | After auto-fix, re-run critic. If still <5, output with a "NEEDS USER REVIEW" flag in the header. |
+
+**Autopilot anchor selection:**
+If no anchor source was provided by the user, auto-select in this priority:
+1. Best data point from brave-research → "Curator with a take" opening
+2. Trend observation from script-analyzer → "Observer" opening
+3. Counterargument from blindspot-detector → "Contrarian" opening
+Never use a generic opening. Always pick the most specific available anchor.
+
+**Quality floor (non-negotiable even in autopilot):**
+- Hook must be ≤15 words with at least 1 concrete noun — no exceptions
+- LinkedIn version must have at least 1 "I noticed..." or personal observation marker
+- Never output a script that sounds like a report — if tone check fails, rewrite the first 2 sentences in conversational voice
+- All three platform versions must be distinct — not translations of each other
+
 ### Phase 4 — REVISE
 Apply the critic's feedback. Focus only on the failing checks — do not rewrite what's working.
 

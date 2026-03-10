@@ -25,6 +25,9 @@ class FraudTypology(str, Enum):
     SMURFING = "smurfing"  # Multiple small deposits by different people
     VELOCITY_ABUSE = "velocity_abuse"  # Abnormal transaction frequency
     DORMANT_ACTIVATION = "dormant_activation"  # Sudden activity on dormant account
+    SYNTHETIC_IDENTITY = "synthetic_identity"  # AI-generated fake identities
+    DEEPFAKE_AUTH = "deepfake_auth"  # Deepfake voice/video used for authorization
+    AI_PHISHING = "ai_phishing"  # LLM-assisted social engineering
     UNKNOWN = "unknown"
 
 

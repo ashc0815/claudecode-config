@@ -70,6 +70,46 @@
       ],
       "dormant_days": 90,
       "activation_amount_threshold": 5000
+    },
+    {
+      "id": "synthetic_identity",
+      "name": "Synthetic Identity Fraud",
+      "description": "AI-generated or composite fake identities used to open accounts and conduct fraudulent transactions",
+      "indicators": [
+        "New account with rapid credit-building activity followed by large cash-out (bust-out pattern)",
+        "Multiple accounts sharing overlapping PII fragments (partial address, phone, or SSN overlap)",
+        "Identity elements have no historical footprint in public records or credit bureaus",
+        "Account behavior perfectly matches textbook legitimate patterns (too clean)"
+      ],
+      "min_pii_overlap_count": 2,
+      "bust_out_window_days": 180
+    },
+    {
+      "id": "deepfake_auth",
+      "name": "Deepfake Authorization Fraud",
+      "description": "Use of AI-generated voice or video to impersonate authorized individuals for transaction approval",
+      "indicators": [
+        "Voice-authorized transaction with unusually high amount compared to account history",
+        "Authorization channel inconsistent with customer's historical behavior",
+        "Multiple high-value voice/video authorizations in short succession",
+        "Authorization metadata anomalies (call duration, audio quality, session timing)"
+      ],
+      "amount_deviation_multiplier": 5.0,
+      "max_auth_count_per_day": 3
+    },
+    {
+      "id": "ai_phishing",
+      "name": "AI-Assisted Social Engineering",
+      "description": "Transactions resulting from LLM-crafted phishing or social engineering attacks targeting account holders",
+      "indicators": [
+        "Sudden wire transfer to a new beneficiary immediately after account credential changes",
+        "Transaction memo or notes contain urgency language typical of social engineering",
+        "Victim account shows login from new device/location shortly before transaction",
+        "Multiple victims sending to the same beneficiary within a short time window"
+      ],
+      "new_beneficiary_alert": true,
+      "multi_victim_threshold": 3,
+      "time_window_hours": 48
     }
   ]
 }

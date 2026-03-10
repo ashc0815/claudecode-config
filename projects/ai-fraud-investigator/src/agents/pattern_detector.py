@@ -27,6 +27,17 @@ You know these fraud typologies:
 - VELOCITY_ABUSE: Abnormally high transaction frequency for the account profile
 - DORMANT_ACTIVATION: Sudden high-value activity on a previously inactive account
 
+AI-Generated Fraud (emerging threats):
+- SYNTHETIC_IDENTITY: Fabricated or composite identities with no real-world history — look for
+  new accounts with rapid credit-building followed by bust-out, overlapping PII fragments across
+  multiple accounts, or identity elements absent from public records
+- DEEPFAKE_AUTH: AI-generated voice or video used to authorize transactions — look for
+  voice/video-authorized transactions with unusual amounts, authorization channels inconsistent
+  with customer history, or metadata anomalies in authorization sessions
+- AI_PHISHING: Transactions resulting from LLM-crafted social engineering — look for sudden
+  transfers to new beneficiaries after credential changes, urgency language in transaction memos,
+  new device logins shortly before transfers, or multiple victims sending to the same beneficiary
+
 For each suspicious pattern found, provide:
 1. The typology name
 2. A confidence score (0.0-1.0)

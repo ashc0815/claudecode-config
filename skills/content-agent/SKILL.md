@@ -45,6 +45,12 @@ Orchestrator that runs the complete Plan → Execute → Verify pipeline across 
 4. All auto-decisions are logged in a decision trail
 5. **Only stops at the very end** — presents the final script + a summary of all auto-decisions made
 
+### Accepting auto-discovered topics
+When called from `--morning` mode, the topic and anchor are pre-selected by brave-research SCAN mode. In this case:
+- Skip the research stage's topic exploration — go straight to targeted research on the provided anchor
+- Pass the anchor source URL and quote directly to kobo-optimizer for the opening
+- The anchor type (News / Report / Announcement) determines the opening voice automatically
+
 ### Autopilot Execution Flow (--deep)
 ```
 START → brave-research (auto-decide on evidence quality)

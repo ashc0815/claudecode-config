@@ -9,6 +9,7 @@ User invokes `/linkedin-orchestrator` with a mode flag:
 /linkedin-orchestrator --full                     → Full cycle (weekly review + daily routine)
 /linkedin-orchestrator --daily --autopilot [topic] → Daily routine, zero interruptions
 /linkedin-orchestrator --full --autopilot [topic]  → Full cycle, zero interruptions
+/linkedin-orchestrator --morning                  → ★ Fully autonomous: find topic + write post + generate engagement
 /linkedin-orchestrator status                     → Show current state of all systems
 ```
 
@@ -51,6 +52,97 @@ Meta-orchestrator that coordinates the entire LinkedIn multi-agent system. Manag
 ---
 
 ## Instructions
+
+### `--morning` MODE: Fully Autonomous Daily Run
+
+**This is the "I just say go" mode.** User provides NOTHING — the agent finds today's topic, writes the post, generates engagement comments, and presents a single go/no-go decision.
+
+#### How to use
+```
+/linkedin-orchestrator --morning
+```
+That's it. No topic, no flags, no input. Just run this every morning.
+
+#### Execution Flow
+```
+STEP 0: Read context
+  → Read linkedin-strategy.md (current topic priorities + what's working)
+  → Read content-sessions.md (recent posts — avoid repetition)
+  → Read linkedin-creators.md (for engagement targets)
+
+STEP 1: Find today's topic
+  → Run /brave-research in SCAN mode (morning news sweep)
+  → Auto-select the best topic based on freshness + controversy + data + strategy alignment
+  → Auto-check against content-memory to avoid repeats
+
+STEP 2: Write the post
+  → Run /content-agent --autopilot [auto-selected topic]
+  → Full pipeline: research → analyze → stress test → script
+  → All decisions handled automatically by each skill's autopilot rules
+
+STEP 3: Generate engagement
+  → Auto-select 3-5 creators from linkedin-creators.md (rotation-aware)
+  → Generate template comments based on each creator's focus area
+  → Flag as "template — customize after reading their actual post"
+
+STEP 4: Present for approval
+  → Single output block with everything the user needs
+```
+
+#### Output Format
+```
+## ☀ Morning Brief: [DATE]
+Topic source: [What triggered this topic — news headline, report, announcement]
+Strategy alignment: [Which strategy priority this serves]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+### Your LinkedIn Post
+[Final LinkedIn script — ready to copy-paste]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+### Engagement Queue (post these ~1h after publishing)
+
+**1. [Creator Name]** — likely topic: [their focus area]
+> [Template comment — customize after reading their actual post]
+
+**2. [Creator Name]** — likely topic: [their focus area]
+> [Template comment]
+
+**3. [Creator Name]** — likely topic: [their focus area]
+> [Template comment]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+### Autopilot Decision Trail
+- Topic selection: [why this topic was chosen over alternatives]
+- Research: [evidence quality — strong/data-light/no-data]
+- Analysis: [any auto-narrowing or auto-fixes applied]
+- Stress test: [any auto-downgrades — observer framing, etc.]
+- Script: [reflection score X/8, any revisions made]
+
+### Runners-up (if you don't like today's topic)
+2. [Alternative topic] — [one-line reason]
+3. [Alternative topic] — [one-line reason]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+### Your Call
+- **"go"** → I'll log to content-memory, you publish
+- **"用第2个"** or **"switch to [topic]"** → I'll re-run the pipeline on that topic
+- **"adjust [what]"** → I'll revise just that part (e.g., "adjust hook", "more data", "shorter")
+- **"skip today"** → Nothing posted, no log
+```
+
+#### Morning Mode Guardrails
+- **Topic must be <48h old.** If no fresh news found, fall back to linkedin-strategy.md's planned topics for the week.
+- **Never pick the same topic angle as a post from the last 14 days.** Always cross-check content-memory.
+- **Strategy alignment is weighted.** If linkedin-strategy.md says "focus on AI agents this week", prefer topics in that direction.
+- **Mode auto-selection:** If the topic has rich data (Tier 1/2 sources), use --deep pipeline. If it's a reactive hot take, use --fast. The agent decides — user doesn't need to.
+- **Runners-up are always shown.** User can switch to an alternative without re-running the scan.
+
+---
 
 ### `--autopilot` FLAG: Zero-Interruption Mode
 

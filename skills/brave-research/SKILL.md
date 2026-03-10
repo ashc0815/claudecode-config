@@ -57,6 +57,22 @@ For each piece of evidence found, assess:
 - If only Tier 3 sources found → WEAK EVIDENCE, flag and suggest alternative search angles
 - If no relevant sources found → NO EVIDENCE, recommend reframing the claim or dropping it
 
+### Autopilot Decision Rules (when called from --autopilot pipeline)
+When running inside an autopilot pipeline, do NOT stop to ask the user. Instead:
+
+| Situation | Auto-Decision |
+|-----------|---------------|
+| STRONG EVIDENCE | Proceed. Pass top 2 data points downstream. |
+| WEAK EVIDENCE | Auto-run 1 retry with narrower query. If still weak, proceed with caveat: tag output as "data-light" and recommend observer framing to kobo-optimizer. |
+| NO EVIDENCE | Do NOT ask user. Auto-narrow the topic to the most specific sub-angle that has adjacent data. If still nothing after 1 retry, proceed with "no-data" flag — kobo-optimizer will use counter-intuitive claim formula instead of data shock. |
+| Conflicting sources | Pick the higher-tier source. Note the conflict in output for blindspot-detector to address. |
+| All sources >18 months old | Use the most recent one with a recency caveat. Never block the pipeline for stale data alone. |
+
+**Quality floor (non-negotiable even in autopilot):**
+- Never fabricate or extrapolate statistics
+- Never cite a source without verifying it exists via WebFetch
+- Always tag evidence tier in output so downstream skills can calibrate
+
 ### Phase 4 — REFLECT
 After gathering evidence, ask: does this data strengthen or complicate the original claim?
 - If it strengthens: note the best quote/stat to use

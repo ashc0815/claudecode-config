@@ -4,10 +4,12 @@
 User invokes `/linkedin-orchestrator` with a mode flag:
 
 ```
-/linkedin-orchestrator --daily           → Daily routine (post + engage)
-/linkedin-orchestrator --weekly          → Weekly review cycle (analyze + strategize)
-/linkedin-orchestrator --full            → Full cycle (weekly review + daily routine)
-/linkedin-orchestrator status            → Show current state of all systems
+/linkedin-orchestrator --daily                    → Daily routine (post + engage)
+/linkedin-orchestrator --weekly                   → Weekly review cycle (analyze + strategize)
+/linkedin-orchestrator --full                     → Full cycle (weekly review + daily routine)
+/linkedin-orchestrator --daily --autopilot [topic] → Daily routine, zero interruptions
+/linkedin-orchestrator --full --autopilot [topic]  → Full cycle, zero interruptions
+/linkedin-orchestrator status                     → Show current state of all systems
 ```
 
 ## Purpose
@@ -49,6 +51,53 @@ Meta-orchestrator that coordinates the entire LinkedIn multi-agent system. Manag
 ---
 
 ## Instructions
+
+### `--autopilot` FLAG: Zero-Interruption Mode
+
+When `--autopilot` is combined with any mode, the orchestrator runs the entire pipeline without asking for user input. Every intermediate decision is handled automatically by each skill's built-in autopilot rules.
+
+**`--daily --autopilot [topic]`:**
+1. Auto-check `linkedin-strategy.md` for today's planned topic (use provided [topic] if given, else pick from weekly plan)
+2. Run `/content-agent --autopilot [topic]` — full pipeline, no interruptions
+3. Output the final script + engagement comments in one block
+4. Present a single decision point:
+```
+## Ready to Publish
+
+### Your Post
+[Final LinkedIn script]
+
+### Engagement Comments (post ~1 hour after publishing)
+[3-5 generated comments for target creators]
+
+### Autopilot Decision Trail
+[Summary of all auto-decisions made during the pipeline]
+
+### Your Call
+- "go" → I'll log everything to content-memory
+- "adjust [what]" → I'll revise just that part
+- "redo" → I'll re-run the full pipeline in step-by-step mode
+```
+
+**`--full --autopilot [topic]`:**
+1. Run weekly review: `/linkedin-analyst` + `/linkedin-strategist` (auto-process available data)
+2. Pick today's topic from freshly generated plan (or use provided [topic])
+3. Run daily autopilot pipeline (as above)
+4. Output everything in one block: strategy update + final script + engagement comments
+
+**`--weekly` with `--autopilot`:**
+- Requires user to provide LinkedIn Analytics data (this is the one input that can't be auto-generated)
+- Once data is provided, runs analyst → strategist → weekly plan generation without further interruptions
+- If no data is provided, auto-generate plan based on content-memory data only, flagged as "data-light review"
+
+**Autopilot engagement generation:**
+When generating engagement comments in autopilot mode:
+- Auto-select 3-5 creators from `linkedin-creators.md` based on rotation schedule
+- Since we can't fetch their actual posts, generate **template comments** based on each creator's known focus area
+- Flag these as "template — customize after reading their actual post"
+- The user reviews and personalizes before posting
+
+---
 
 ### `--weekly` MODE: Weekly Review Cycle
 

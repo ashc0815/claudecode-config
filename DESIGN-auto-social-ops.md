@@ -28,7 +28,7 @@
 
 ---
 
-## 系统架构：6 个 Agent + 1 个调度器
+## 系统架构：7 个 Agent + 1 个调度器
 
 ```
                     ┌──────────────────────┐
@@ -36,21 +36,23 @@
                     │   (每日调度中心)       │
                     └──────┬───────────────┘
                            │
-          ┌────────────────┼────────────────────┐
-          │                │                    │
-          ▼                ▼                    ▼
-    ┌──────────┐    ┌──────────┐         ┌──────────┐
-    │  Scout   │    │ Creator  │         │ Analyst  │
-    │  Agent   │    │  Agent   │         │  Agent   │
-    │ (新闻发现) │    │ (内容生成) │         │ (数据分析) │
-    └────┬─────┘    └────┬─────┘         └────┬─────┘
-         │               │                    │
-         ▼               ▼                    ▼
-    ┌──────────┐    ┌──────────┐         ┌──────────┐
-    │ Planner  │    │Publisher │         │ Strategist│
-    │  Agent   │    │  Agent   │         │  Agent   │
-    │ (选题排期) │    │ (自动发布) │         │ (策略调整) │
-    └──────────┘    └──────────┘         └──────────┘
+     ┌─────────────┬───────┼───────────┬────────────┐
+     │             │       │           │            │
+     ▼             ▼       ▼           ▼            ▼
+┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+│  Scout   │ │ Creator  │ │ Engager  │ │ Analyst  │ │Strategist│
+│  Agent   │ │  Agent   │ │  Agent   │ │  Agent   │ │  Agent   │
+│ (新闻发现) │ │ (内容生成) │ │(社区互动) │ │ (数据分析) │ │ (策略调整) │
+└────┬─────┘ └────┬─────┘ └──────────┘ └────┬─────┘ └──────────┘
+     │            │                         │
+     ▼            ▼                         │
+┌──────────┐ ┌──────────┐                   │
+│ Planner  │ │Publisher │                   │
+│  Agent   │ │  Agent   │                   │
+│ (选题排期) │ │ (自动发布) │                   │
+└──────────┘ └──────────┘                   │
+                                            ▼
+                                   数据反馈 → 策略调整
 ```
 
 ---
@@ -264,7 +266,192 @@ X:         周一-周五 12:00-13:00 EST (午休刷推)
 
 ---
 
-### Agent 5: Analyst Agent（数据分析）
+### Agent 5: Engager Agent（社区互动）
+
+**职责：** 每小时自动扫描 LinkedIn feed，对高价值帖子生成并发布评论，建立社区存在感
+
+**运行频率：** 每小时 1 次（工作时间 07:00-22:00 EST）
+
+**为什么自动评论比发帖更重要：**
+```
+发帖: 你的 follower 看到 → 有限触达
+评论: 对方的 follower 看到 → 借力触达
+评论大 V 的帖子: 数万人看到你的名字 + 观点 → 最高效的曝光方式
+
+LinkedIn 算法: 高质量评论 = 免费的广告位
+```
+
+**评论目标分层：**
+
+| 层级 | 对象 | 目标 | 评论策略 |
+|------|------|------|---------|
+| Tier 1 | 行业大 V (50K+ followers) | 借势曝光 | 补充数据/独特视角，争取被 pin |
+| Tier 2 | 同行/peer creators (5K-50K) | 关系建立 | 有深度的讨论，引发回复对话 |
+| Tier 3 | 你自己帖子的评论者 | 社区维护 | 每条必回，鼓励继续互动 |
+| Tier 4 | 潜在合作方 | 关系破冰 | 真诚赞赏 + 提出问题 |
+
+**自动评论流程：**
+
+```
+每小时运行:
+
+1. Feed 扫描
+   ├── LinkedIn API: 获取 feed 最新帖子 (50-100 条)
+   ├── 过滤: 只看 watchlist 中的人 + 行业话题标签
+   └── 去重: 跳过已评论的帖子
+
+2. 帖子评分（决定是否评论）
+   ├── 作者影响力 (follower count, engagement rate)
+   ├── 话题相关性 (与你的定位匹配度)
+   ├── 时效性 (发布 < 2h 的帖子优先 — 早期评论排名靠前)
+   ├── 评论区竞争度 (已有评论数 — 太多则不值得)
+   └── Score > 7/10 → 生成评论
+
+3. 评论生成
+   ├── 读取原帖内容
+   ├── 读取你的 persona + 专业领域
+   ├── 生成 3 种评论草稿:
+   │   ├── A: 补充型 — 加一个数据点/案例
+   │   ├── B: 提问型 — 引发深度讨论
+   │   └── C: 连接型 — 关联到另一个趋势
+   └── 选择最佳 → 进入审批/发布
+
+4. 评论发布
+   ├── 人工审批模式: 推送到审批队列
+   └── 自动模式: 直接发布 (Tier 3 自动, Tier 1-2 需审批)
+```
+
+**评论质量标准（Engager 的 quality gate）：**
+
+```yaml
+comment_rules:
+  min_length: 30 words     # 太短没价值
+  max_length: 150 words    # 太长没人看
+  must_contain:
+    - 具体观点 (不是 "Great post!")
+    - 至少一个: 数据点 / 个人经验 / 深度提问
+  must_not_contain:
+    - 自我推销链接
+    - "我写了一篇关于这个的文章..."
+    - 纯赞美无实质内容
+    - 敏感/争议性言论
+
+  persona_alignment:
+    voice: "professional but approachable"
+    expertise_areas: ["AI in finance", "fintech", "future of work"]
+    avoid: "mansplaining, over-confident claims, generic advice"
+```
+
+**评论示例（好 vs 坏）：**
+
+```
+❌ 坏评论:
+"Great insights! Thanks for sharing. 👏"
+→ 零价值，算法不会推
+
+❌ 坏评论:
+"I wrote about this too! Check out my post on..."
+→ 自我推销，令人反感
+
+✅ 好评论:
+"The 12-second settlement point is fascinating.
+What's less discussed is the regulatory angle — SEC still
+requires human sign-off on trades above $10M. So the real
+bottleneck isn't the AI, it's the compliance framework.
+
+Curious if JPMorgan is lobbying for regulatory changes
+alongside the tech deployment?"
+→ 有数据、有独特视角、有提问 → 引发讨论 → 被更多人看到
+```
+
+**评论监控列表（watchlist）：**
+
+```yaml
+# engager-watchlist.yaml
+linkedin_watchlist:
+  tier_1:  # 大 V — 评论为了曝光
+    - name: "Satya Nadella"
+      url: "linkedin.com/in/satyanadella"
+      topics: ["AI", "enterprise"]
+      comment_priority: high
+      auto_approve: false  # 大 V 帖子必须人工审批
+
+    - name: "Jensen Huang"
+      url: "linkedin.com/in/jenhsunhuang"
+      topics: ["AI chips", "GPU computing"]
+      comment_priority: high
+      auto_approve: false
+
+  tier_2:  # Peer — 评论为了关系
+    - name: "[行业同行1]"
+      topics: ["fintech", "AI agents"]
+      comment_priority: medium
+      auto_approve: true  # 同行可以自动评论
+
+  tier_3:  # 自己帖子的评论者
+    auto_reply: true
+    max_reply_delay: "2h"  # 2 小时内必回
+    reply_style: "grateful + substantive"
+
+  topic_tags:  # 不认识的人但话题相关
+    - "#AIinFinance"
+    - "#FutureOfWork"
+    - "#FinTech"
+    - "#GenerativeAI"
+    comment_if_score: "> 7/10"
+```
+
+**安全限制：**
+
+```yaml
+safety_limits:
+  max_comments_per_hour: 5        # 防止被 LinkedIn 标记为 spam
+  max_comments_per_day: 20        # 日上限
+  min_interval_seconds: 120       # 两条评论间隔至少 2 分钟
+  cool_down_if_flagged: "24h"     # 如果任何评论被删/举报，停 24h
+  no_comment_on:
+    - "political posts"
+    - "religious content"
+    - "personal grievances"
+    - "layoff announcements (unless data-driven)"
+  human_approval_required:
+    - "Tier 1 authors (大 V)"
+    - "controversial topics"
+    - "first-time commenting on a new person"
+```
+
+**Engager 数据回收（喂给 Analyst）：**
+
+```yaml
+# engager-analytics-20260310.yaml
+date: 2026-03-10
+comments_posted: 12
+comments_approved: 12
+comments_rejected: 2  # 人工审批拒绝
+
+top_performing_comment:
+  on_post_by: "Satya Nadella"
+  topic: "AI agents in enterprise"
+  comment_impressions: 4500  # 评论被多少人看到
+  comment_likes: 23
+  profile_visits_from_comment: 15  # 看了评论后访问你的 profile
+  new_followers_attributed: 3      # 来自这条评论的新 follower
+
+engagement_summary:
+  avg_comment_likes: 5.2
+  reply_rate: 35%          # 多少评论得到了原作者回复
+  conversation_rate: 18%   # 多少评论引发了 2+ 轮对话
+  profile_click_rate: 2.1% # 评论 → 点击你 profile 的转化率
+
+tier_breakdown:
+  tier_1: { comments: 3, avg_likes: 12, profile_visits: 8 }
+  tier_2: { comments: 5, avg_likes: 4, profile_visits: 4 }
+  tier_3: { comments: 4, avg_likes: 2, profile_visits: 0 }  # 自己帖子的回复
+```
+
+---
+
+### Agent 6: Analyst Agent（数据分析）
 
 **职责：** 自动回收发布数据，生成每日/每周 performance report
 
@@ -341,7 +528,7 @@ Action items for Strategist Agent:
 
 ---
 
-### Agent 6: Strategist Agent（策略调整）
+### Agent 7: Strategist Agent（策略调整）
 
 **职责：** 基于 Analyst 的数据，调整 Scout 和 Planner 的行为参数
 
@@ -442,11 +629,22 @@ content_strategy:
 09:00 UTC  Publisher Agent
            └── 发布 Post 1 → LinkedIn (08:30 EST)
 
+10:00 UTC  Engager Agent (第 1 轮)
+           ├── 扫描 LinkedIn feed
+           ├── 筛选高价值帖子 (score > 7)
+           └── 生成 + 发布/审批评论 (3-5 条)
+
+11:00 UTC  Engager Agent (第 2 轮)
+           └── 继续扫描 + 回复自己帖子下的新评论
+
+...        Engager Agent 每小时运行 (07:00-22:00 EST)
+
 14:00 UTC  Publisher Agent
            └── 发布 Post 2 → LinkedIn + X (09:00 EST / 14:00 UTC)
 
 16:00 UTC  Analyst Agent (2h 快照)
-           └── 回收 Post 1 early metrics
+           ├── 回收 Post 1 early metrics
+           └── 回收 Engager 评论数据
 
 18:00 UTC  Scout Agent 第二轮扫描
            └── 补充下午的新素材 → 更新候选池
@@ -474,6 +672,7 @@ content_strategy:
 |------|------|-----------|
 | 每日排期确认 | 防止不合适的话题被发布 | 运行 30 天 + 用户显式开启 auto-approve |
 | 内容最终审核 | 防止错误数据/不当表述 | 仅 --fast 模式可跳过（已有 quality gate） |
+| Tier 1 评论审批 | 大 V 帖子评论影响大 | 永不全自动 — 大 V 评论必须人工确认 |
 | 策略参数调整 | 防止数据漂移导致方向偏离 | 永不全自动 — 策略由人控制 |
 | 敏感话题拦截 | 金融监管、争议话题 | 永不全自动 |
 
@@ -539,6 +738,7 @@ Phase 4: 加入 Strategist Agent + 全流程调度
 │   ├── scout-agent/SKILL.md          # 新增
 │   ├── planner-agent/SKILL.md        # 新增
 │   ├── publisher-agent/SKILL.md      # 新增
+│   ├── engager-agent/SKILL.md        # 新增：社区互动
 │   ├── analyst-agent/SKILL.md        # 新增
 │   ├── strategist-agent/SKILL.md     # 新增
 │   ├── content-agent/SKILL.md        # 改造：读取 daily-plan
@@ -557,6 +757,9 @@ Phase 4: 加入 Strategist Agent + 全流程调度
 │   │   └── post-20260310-001.yaml
 │   ├── analytics/                     # 发布数据
 │   │   └── post-20260310-001.yaml
+│   ├── engager/                       # 评论记录
+│   │   ├── comments-20260310.yaml     # 每日评论日志
+│   │   └── watchlist.yaml             # 监控列表
 │   └── strategy-config.yaml           # 策略参数（唯一）
 │
 └── projects/-Users-ashleychen/memory/
@@ -574,6 +777,8 @@ Phase 4: 加入 Strategist Agent + 全流程调度
 
 新增 Agents（包裹在现有 pipeline 外层）:
   Scout → Planner → [Creator = 现有 pipeline] → Publisher → Analyst → Strategist
+                                                    ↑
+                                          Engager Agent (每小时独立运行，与发帖流程并行)
                                                                         │
                                                                         ▼
                                                               更新 Scout + Planner 参数
@@ -588,9 +793,13 @@ Phase 4: 加入 Strategist Agent + 全流程调度
 | Phase | 内容 | 工作量 | 价值 |
 |-------|------|--------|------|
 | **Phase 1** | Scout Agent + Planner Agent | 2-3 天 | 高：解决「每天想话题」的痛点 |
+| **Phase 1.5** | Engager Agent（LinkedIn 自动评论）| 2-3 天 | **极高：评论 ROI > 发帖** |
 | **Phase 2** | Analyst Agent（数据回收） | 2-3 天 | 高：闭合反馈循环 |
 | **Phase 3** | Publisher Agent（API 集成） | 3-5 天 | 中：省去手动复制粘贴 |
 | **Phase 4** | Strategist Agent（策略自动调整）| 2-3 天 | 中：需要 Phase 2 的数据积累 |
 | **Phase 5** | 全流程调度 + 渐进式放权 | 3-5 天 | 高：真正的自动化 |
 
-**建议从 Phase 1 开始** — Scout + Planner 不需要任何 API key，可以立刻开始用。
+**建议 Phase 1 和 1.5 同时开始：**
+- Scout + Planner 不需要 API key，解决选题问题
+- Engager 只需要 LinkedIn API（你发帖也需要），且 **评论的曝光 ROI 远高于发帖**
+- Engager 是独立模块，与发帖流程完全并行，不影响其他 Agent

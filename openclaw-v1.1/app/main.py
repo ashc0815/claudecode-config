@@ -1,12 +1,24 @@
-"""OpenClaw V1.1 HITL — FastAPI application with 5 endpoints.
+"""OpenClaw V1.1 HITL — FastAPI application.
+
+Core pipeline:
+  Employee uploads voucher
+    → OCR → Claude → Rules → Decision
+    → PASS: auto-push to Concur → approval flow
+    → WARN: Feishu notification → finance reviews → approve/reject
+    → FAIL: reject back to employee
+
+Post-audit (hourly cron):
+  Concur approved data → pull back → cross-validate against original voucher
 
 Endpoints:
-  POST /upload          — Upload a voucher image for audit
-  GET  /results         — Query audit results
-  POST /feedback        — Submit HITL feedback (V1.1 enhanced)
-  GET  /metrics         — System performance metrics (V1.1 new)
-  POST /rules/approve   — Approve/reject rule adjustments (V1.1 new)
-  POST /learning/run    — Manually trigger learning cycle (V1.1 new, admin only)
+  POST /upload              — Upload voucher for audit
+  GET  /results             — Query audit results
+  POST /feedback            — Submit HITL feedback (V1.1 enhanced)
+  GET  /metrics             — System performance metrics
+  POST /rules/approve       — Approve/reject rule adjustments
+  POST /learning/run        — Manually trigger learning cycle
+  POST /concur/push/{id}    — Manually push approved audit to Concur
+  POST /concur/reconcile    — Trigger post-audit reconciliation
 """
 
 import logging
@@ -35,6 +47,7 @@ from .models import (
     RulePerformance,
     WeeklySnapshot,
 )
+from .concur import push_to_concur, reconcile_with_concur, pull_approved_reports
 from .notify import send_audit_result
 from .ocr import extract_text_from_base64
 from .rules import evaluate, get_current_params_snapshot
@@ -173,7 +186,12 @@ async def upload_voucher(
     )
 
     if risk_level != "pass":
+        # WARN / FAIL → notify finance via Feishu for human review
         background_tasks.add_task(send_audit_result, result_model)
+    else:
+        # PASS → auto-push to Concur approval flow
+        concur_data = {**expense_data, "audit_id": audit_id, "risk_level": risk_level, "risk_score": risk_score}
+        background_tasks.add_task(_push_pass_to_concur, concur_data, content)
 
     return {
         "audit_id": audit_id,
@@ -181,7 +199,39 @@ async def upload_voucher(
         "risk_score": risk_score,
         "risk_flags": all_flags,
         "processing_time_ms": processing_time,
+        "concur_status": "auto_pushing" if risk_level == "pass" else "pending_review",
     }
+
+
+async def _push_pass_to_concur(expense_data: dict, image_bytes: bytes):
+    """Background task: push PASS audit results to Concur."""
+    try:
+        result = await push_to_concur(
+            expense_data=expense_data,
+            image_bytes=image_bytes,
+            auto_submit=True,  # PASS items auto-submit to approval flow
+        )
+        # Update audit record with Concur IDs
+        db.get_client().table("audit_results").update({
+            "concur_report_id": result.get("concur_report_id", ""),
+            "concur_entry_id": result.get("concur_entry_id", ""),
+            "concur_status": "submitted",
+        }).eq("audit_id", expense_data["audit_id"]).execute()
+
+        db.append_audit_log(
+            event_type="concur_push",
+            actor="system",
+            audit_id=expense_data["audit_id"],
+            details=result,
+        )
+    except Exception as e:
+        logger.error("Failed to push %s to Concur: %s", expense_data.get("audit_id"), e)
+        db.append_audit_log(
+            event_type="concur_push_failed",
+            actor="system",
+            audit_id=expense_data.get("audit_id"),
+            details={"error": str(e)},
+        )
 
 
 # ── GET /results ──
@@ -320,6 +370,106 @@ async def trigger_learning_cycle():
     return result
 
 
+# ═══════════════════════════════════════════════
+# Concur Integration Endpoints
+# ═══════════════════════════════════════════════
+
+
+@app.post("/concur/push/{audit_id}")
+async def manual_push_to_concur(audit_id: str):
+    """Manually push an approved WARN audit to Concur.
+
+    Called after finance reviews a WARN item in Feishu and clicks [approve].
+    Flow: WARN → finance reviews → approves → this endpoint → Concur.
+    """
+    audit = db.get_audit_result(audit_id)
+    if not audit:
+        raise HTTPException(status_code=404, detail="Audit not found")
+
+    if audit.get("concur_status") == "submitted":
+        return {"status": "already_submitted", "audit_id": audit_id}
+
+    expense_data = {
+        **(audit.get("ocr_structured", {})),
+        "audit_id": audit_id,
+        "risk_level": audit.get("risk_level", ""),
+        "risk_score": audit.get("risk_score", 0),
+    }
+
+    try:
+        result = await push_to_concur(
+            expense_data=expense_data,
+            auto_submit=True,
+        )
+
+        db.get_client().table("audit_results").update({
+            "concur_report_id": result.get("concur_report_id", ""),
+            "concur_entry_id": result.get("concur_entry_id", ""),
+            "concur_status": "submitted",
+        }).eq("audit_id", audit_id).execute()
+
+        db.append_audit_log(
+            event_type="concur_push_manual",
+            actor="finance",
+            audit_id=audit_id,
+            details=result,
+        )
+
+        return {**result, "audit_id": audit_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Concur push failed: {e}")
+
+
+@app.post("/concur/reconcile")
+async def trigger_reconciliation(modified_after: str = ""):
+    """Trigger post-audit reconciliation: pull Concur approved data and cross-validate.
+
+    In production, runs as hourly cron. This endpoint allows manual triggering.
+
+    Checks for discrepancies:
+    - Manager changed the amount after OpenClaw audit?
+    - Report was rejected in Concur?
+    - Date/vendor mismatch between original voucher and Concur entry?
+    """
+    try:
+        reports = await pull_approved_reports(modified_after=modified_after)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to pull Concur data: {e}")
+
+    results = []
+    for report in reports:
+        report_id = report.get("ID", "")
+
+        # Find matching OpenClaw audit by Custom1 field
+        try:
+            entries = await pull_approved_reports()  # would use pull_report_entries in real code
+        except Exception:
+            continue
+
+        # Look up our audits that were pushed to this report
+        our_audits = (
+            db.get_client()
+            .table("audit_results")
+            .select("audit_id")
+            .eq("concur_report_id", report_id)
+            .execute()
+            .data
+        )
+
+        for audit in our_audits:
+            try:
+                recon = await reconcile_with_concur(audit["audit_id"], report_id)
+                results.append(recon)
+            except Exception as e:
+                logger.error("Reconciliation failed for %s: %s", audit["audit_id"], e)
+
+    return {
+        "reconciled": len(results),
+        "discrepancies_found": sum(1 for r in results if r.get("discrepancies")),
+        "results": results,
+    }
+
+
 # ── Health check ──
 
 
@@ -328,5 +478,12 @@ async def health():
     return {
         "status": "ok",
         "version": "1.1.0",
-        "features": ["hitl_feedback", "rule_auto_tuning", "prompt_versioning", "weekly_metrics"],
+        "features": [
+            "hitl_feedback",
+            "rule_auto_tuning",
+            "prompt_versioning",
+            "weekly_metrics",
+            "concur_integration",
+            "post_audit_reconciliation",
+        ],
     }

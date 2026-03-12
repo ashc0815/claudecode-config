@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     mistral_api_key: str = ""
     anthropic_api_key: str = ""
 
+    # SAP Concur
+    concur_client_id: str = ""
+    concur_client_secret: str = ""
+    concur_refresh_token: str = ""
+    concur_company_id: str = ""
+
     # Feishu
     feishu_webhook_url: str = ""
     feishu_app_id: str = ""

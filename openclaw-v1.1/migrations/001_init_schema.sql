@@ -26,9 +26,16 @@ CREATE TABLE IF NOT EXISTS audit_results (
   rule_params_snapshot JSONB,
   processing_time_ms   INTEGER,
 
+  -- Concur integration
+  concur_report_id  TEXT,               -- Concur report ID after push
+  concur_entry_id   TEXT,               -- Concur expense entry ID
+  concur_status     TEXT DEFAULT 'not_pushed'
+                    CHECK (concur_status IN ('not_pushed', 'submitted', 'approved', 'rejected', 'paid')),
+  concur_synced_at  TIMESTAMPTZ,
+
   -- Status
   status          TEXT DEFAULT 'pending_review'
-                  CHECK (status IN ('pending_review', 'confirmed', 'false_positive', 'investigating')),
+                  CHECK (status IN ('pending_review', 'confirmed', 'false_positive', 'investigating', 'pass')),
   resolved_at     TIMESTAMPTZ
 );
 

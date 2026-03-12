@@ -1,171 +1,172 @@
-# AI Anti-Fraud 审计助手 — 技术栈方案分析
+# AI Anti-Fraud 审计助手 — 4 周 MVP 落地方案
 
 > 产品定位：帮 SME「看清每一笔账」的智能审计空间
 > 目标用户：Finance Controller / CFO（团队小、预算有限、无内审部门）
 > 现有技术栈：飞书 + Salesforce
+> 约束：4 周上线 MVP，上线后持续迭代
 
 ---
 
-## 方案一：轻量 MVP（OpenClaw + 飞书原生）
+## 核心原则：砍到只剩刀刃
 
-适合：快速验证 PMF，2-4 周可跑通
+MVP 只做一件事做透：**上传凭证 → AI 全量扫描 → 标出有问题的那几笔**。
+动态风险画像、图谱分析、Salesforce 同步——全部 V2 再说。
 
-### 架构
+---
 
-```
-飞书群/多维表格
-    ↕ 飞书官方插件
-OpenClaw Agent（本地/NAS 部署）
-    ├── Skill: invoice-scanner（OCR + 字段提取）
-    ├── Skill: audit-rules（审计规则引擎）
-    ├── Skill: risk-profiler（动态风险画像）
-    └── Skill: salesforce-sync（CRM 数据联动）
-```
+## 4 周 Sprint 计划
 
-### 技术栈
+### Week 1：骨架搭建
 
-| 层 | 选型 | 理由 |
+**目标：凭证上传 → OCR 提取 → 结构化数据入库**
+
+| 任务 | 技术选型 | 交付物 |
 |---|---|---|
-| Agent 框架 | OpenClaw | 你们已有飞书集成经验；本地部署=数据不出内网 |
-| LLM | Claude Opus 4.6 / Sonnet 4.6 | 审计推理需要强逻辑；Sonnet 控成本 |
-| OCR/文档提取 | Mistral OCR API 或 Klippa DocHorizon | Mistral OCR 是 2025 benchmark 标杆；Klippa 内置反欺诈检测 |
-| 凭证存储 | 飞书多维表格 + 本地 SQLite | MVP 阶段零运维；多维表格天然支持协作 |
-| 风险模型 | Finomaly（Python 开源库） | 轻量、支持规则+ML 双模式 |
-| 通知/审批 | 飞书审批流 | 原生集成，CFO 审批零学习成本 |
-
-### 优点
-- 启动成本极低（仅 LLM API 费用）
-- 飞书内闭环，用户无需学新工具
-- 可快速迭代 Skill
-
-### 局限
-- 多维表格不适合大规模数据（>10 万条）
-- OCR 精度依赖第三方 API
-- OpenClaw 本身安全漏洞（512 个已知）需持续关注
-
----
-
-## 方案二：正式产品（全栈自建）
-
-适合：PMF 验证后融资/商业化阶段
-
-### 架构
+| 项目初始化 | Next.js 15 + FastAPI + PostgreSQL + Docker Compose | 一键 `docker compose up` 跑通 |
+| 凭证上传 | Next.js 页面 + S3-compatible 存储（Cloudflare R2，免费 10GB） | 拖拽上传发票/收据/银行流水 |
+| OCR + 字段提取 | Mistral OCR API → Claude Sonnet 4.6 Structured Output | JSON: {供应商, 金额, 日期, 税号, 行项目...} |
+| 数据模型 | PostgreSQL: vouchers, line_items, scan_results | Schema + Alembic migration |
 
 ```
-前端（Next.js / React）
-    ↕ REST + WebSocket
-后端 API（Python FastAPI / Node.js）
-    ├── 文档处理管线
-    │   ├── OCR: Mistral OCR / ABBYY Vantage
-    │   ├── 字段提取: Claude Structured Output
-    │   └── 伪造检测: Arya.ai Forensic API / 自训练 CV 模型
-    ├── 审计引擎
-    │   ├── 规则层: Jube（开源 AML 框架）
-    │   ├── ML 层: Isolation Forest + Autoencoder（PyTorch）
-    │   └── LLM 层: Claude → 审计底稿生成
-    ├── 风险画像
-    │   ├── 行为基线: 时序数据 → Prophet / LSTM
-    │   └── 图谱分析: Neo4j + GNN（供应商-员工关系网）
-    └── 集成层
-        ├── 飞书 SDK（通知/审批/文档）
-        ├── Salesforce API（客户/供应商数据）
-        └── Webhook（ERP / 银行流水导入）
-
-数据层
-    ├── PostgreSQL（结构化交易数据）
-    ├── MinIO / S3（原始凭证文件）
-    ├── Redis（实时风险评分缓存）
-    └── ClickHouse（审计日志 & 分析）
+技术栈：
+├── 前端: Next.js 15 + shadcn/ui + TailwindCSS
+├── 后端: Python FastAPI（async）
+├── DB: PostgreSQL（Supabase 免费 tier 或 Docker 自建）
+├── 文件: Cloudflare R2（S3 兼容，免费额度够 MVP）
+├── OCR: Mistral OCR API（$1/1000 页）
+└── LLM: Claude Sonnet 4.6（字段提取 + 审计推理）
 ```
 
-### 技术栈明细
+### Week 2：AI 审计引擎
 
-| 层 | 选型 | 理由 |
+**目标：每笔交易给出风险标记 + 置信度 + 可解释理由**
+
+| 任务 | 实现方式 | 说明 |
 |---|---|---|
-| **前端** | Next.js 15 + shadcn/ui | 快速搭建 Dashboard；SSR 利于 SEO |
-| **后端** | Python FastAPI | ML 生态最强；async 高并发 |
-| **LLM** | Claude Opus 4.6（审计推理）+ Haiku 4.5（批量分类） | 分级调用控成本 |
-| **OCR** | Mistral OCR + Veryfi（发票专用） | Mistral 通用强；Veryfi 发票识别 99%+ |
-| **伪造检测** | Arya.ai Document Forensics | 像素级篡改检测 + 字体一致性 + MRZ 验证 |
-| **异常检测** | Jube（规则+ML）+ 自训练 Autoencoder | Jube 生产级；Autoencoder 抓 local anomaly |
-| **图谱分析** | Neo4j + PyG（PyTorch Geometric） | 供应商-员工-交易关系网络；GNN 检测团伙欺诈 |
-| **时序基线** | Prophet + LSTM Autoencoder | Prophet 快速建基线；LSTM 捕获复杂时序偏差 |
-| **数据库** | PostgreSQL + ClickHouse | PG 存交易；ClickHouse 跑审计分析查询 |
-| **文件存储** | MinIO（自建 S3） | 本地部署；凭证不出内网 |
-| **消息队列** | Redis Streams / RabbitMQ | 文档处理异步管线 |
-| **部署** | Docker + K3s | 轻量 K8s；适合 SME 私有云 |
-| **飞书集成** | 飞书 OpenAPI SDK | 审批流 + 机器人通知 + 多维表格 |
-| **Salesforce** | Salesforce REST API / Bulk API | 供应商主数据同步 |
+| 规则引擎 | Python 硬编码 10 条高频审计规则 | 不用框架，if/else 足够 |
+| Claude 审计推理 | Prompt Engineering + Structured Output | 每笔交易出: risk_level / confidence / reason / audit_note |
+| 批量处理 | FastAPI Background Tasks + Redis Queue (可选) | 100 张凭证并发扫描 |
+| 结果页面 | Next.js 表格：按风险等级排序，红/黄/绿标记 | 一眼看到哪些有问题 |
 
-### 核心 Pipeline
-
-```
-凭证上传 → OCR 提取 → 结构化字段（Claude Structured Output）
-    → 伪造检测（像素 + 语义双层）
-    → 规则引擎扫描（Jube: 金额阈值/频率/时间异常）
-    → ML 异常检测（Autoencoder: 组合特征偏差）
-    → 图谱分析（GNN: 关系网络异常）
-    → AI 审计员总结（Claude: 风险标记 + 置信度 + 审计底稿）
-    → 飞书通知 CFO + Dashboard 更新
+**10 条 MVP 审计规则（硬编码即可）：**
+```python
+RULES = [
+    "金额为整数且 > 5000（虚假发票常见特征）",
+    "周末/节假日开具的发票",
+    "同一供应商同日多笔接近审批阈值的拆单",
+    "税号格式校验不通过",
+    "金额与行项目合计不一致",
+    "供应商名称模糊匹配到黑名单",
+    "连续编号发票（批量伪造特征）",
+    "开票日期晚于付款日期",
+    "同一报销人短期内高频提交",
+    "金额显著偏离同类历史均值（>2σ）",
+]
 ```
 
----
+### Week 3：飞书集成 + 通知闭环
 
-## 方案三：混合方案（推荐起步路径）
+**目标：审计结果自动推飞书，CFO 可一键处理**
 
-适合：你的实际情况——验证想法 + 保留扩展性
-
-### Phase 1（Week 1-4）：OpenClaw MVP
-```
-飞书多维表格（凭证管理）
-    ↕
-OpenClaw + Claude API
-    ├── 自建 Skill: invoice-ocr（调 Mistral OCR API）
-    ├── 自建 Skill: audit-check（规则 + Claude 推理）
-    └── 自建 Skill: risk-score（基于 Finomaly）
-```
-- 目标：10 个真实客户试用，验证「全量扫描 vs 抽样」的价值感知
-
-### Phase 2（Month 2-3）：独立后端
-```
-FastAPI 后端（从 OpenClaw Skill 逻辑迁移）
-    + PostgreSQL + MinIO
-    + 飞书 SDK 直连
-```
-- 目标：脱离 OpenClaw 依赖，数据持久化，支持多租户
-
-### Phase 3（Month 4-6）：完整产品
-```
-Next.js Dashboard
-    + 图谱分析（Neo4j）
-    + 动态风险画像（LSTM baseline）
-    + Salesforce 双向同步
-```
-- 目标：商业化就绪，支持 SaaS / 私有化双模式
-
----
-
-## 关键决策点
-
-| 决策 | 建议 | 理由 |
+| 任务 | 实现方式 | 说明 |
 |---|---|---|
-| LLM 选择 | Claude > GPT | 审计需要精确推理 + structured output；Claude 幻觉率更低 |
-| OCR 自建 vs 买 | 先买后建 | Mistral OCR API 成本低；等量起来再微调自有模型 |
-| 数据库 | PG 起步 | 别过早引入 ClickHouse；PG + 索引够用到 100 万条 |
-| 部署模式 | 本地优先 | 金融数据敏感；SME 客户更信任"数据在我这" |
-| 飞书 vs 独立前端 | 先飞书后独立 | 飞书=零获客成本；验证后再建 Dashboard |
+| 飞书机器人通知 | 飞书 OpenAPI Webhook | 高风险凭证即时推送到审计群 |
+| 飞书多维表格同步 | 飞书 Bitable API | 审计结果自动写入，CFO 手机可查 |
+| 消息卡片交互 | 飞书 Interactive Card | "查看详情 / 标记已处理 / 升级调查" 按钮 |
+| 简易审批流 | 飞书审批 API（如果时间够） | 高风险项需 CFO 确认后才能放行——可 V1.1 |
+
+### Week 4：打磨 + 试用 + 修 Bug
+
+**目标：5 个真实客户跑通完整流程**
+
+| 任务 | 说明 |
+|---|---|
+| Dashboard 打磨 | 审计概览页：扫描总数 / 异常率 / Top 风险供应商 |
+| 错误处理 | OCR 识别失败的 fallback（人工标注入口） |
+| 权限 | 简单的 API Key 认证（别搞 OAuth，MVP 够了） |
+| 部署 | Railway / Fly.io 一键部署（或客户自己的服务器 Docker） |
+| 客户试用 | 拿真实凭证跑，收集反馈，记录 V2 需求 |
 
 ---
 
-## 竞品参考
+## 最终技术栈（精简版）
 
-| 产品 | 定位 | 你的差异化 |
+```
+┌─────────────────────────────────────────────┐
+│                   前端                        │
+│  Next.js 15 + shadcn/ui + TailwindCSS        │
+│  · 凭证上传页                                 │
+│  · 审计结果表格（红/黄/绿）                     │
+│  · 概览 Dashboard                             │
+└──────────────────┬──────────────────────────┘
+                   │ REST API
+┌──────────────────┴──────────────────────────┐
+│                   后端                        │
+│  Python FastAPI                               │
+│  · /upload    → 存文件 + 触发 OCR 管线         │
+│  · /scan      → 规则引擎 + Claude 审计         │
+│  · /results   → 查询审计结果                   │
+│  · /webhook   → 飞书通知推送                   │
+└──────┬───────────┬──────────┬────────────────┘
+       │           │          │
+  Mistral OCR   Claude    飞书 API
+  (文档提取)    Sonnet 4.6  (通知+表格)
+               (审计推理)
+       │           │          │
+┌──────┴───────────┴──────────┴────────────────┐
+│                   数据层                       │
+│  PostgreSQL          Cloudflare R2            │
+│  (交易+审计结果)      (原始凭证文件)            │
+└─────────────────────────────────────────────┘
+```
+
+### 成本估算（MVP 阶段月均）
+
+| 项目 | 费用 |
+|---|---|
+| Claude Sonnet 4.6 API | ~$50-100（1000 笔/月） |
+| Mistral OCR API | ~$10（1000 页/月） |
+| Supabase PostgreSQL | $0（免费 tier） |
+| Cloudflare R2 | $0（10GB 免费） |
+| Railway 部署 | ~$5-20 |
+| 飞书 API | $0（100 万次/月免费） |
+| **合计** | **~$65-130/月** |
+
+---
+
+## 明确不做（V2+ 再考虑）
+
+| 功能 | 为什么不做 | 什么时候做 |
 |---|---|---|
-| MindBridge | AI 审计分析（大企业） | 你面向 SME，价格 1/10 |
-| AppZen | AI 费用审计 | 你覆盖全凭证类型，不只费用报销 |
-| Oversight AI | 交易监控 | 你有飞书原生集成，中国市场适配 |
-| Trullion | AI 审计工作底稿 | 你有动态风险画像，不只是静态审计 |
+| 动态风险画像 | 需要 3 个月以上历史数据才有意义 | V2：积累数据后 |
+| 图谱分析（Neo4j） | 过早优化；MVP 阶段供应商数量有限 | V3：客户量起来后 |
+| Salesforce 同步 | 增加集成复杂度，不影响核心价值验证 | V2：PMF 确认后 |
+| 像素级伪造检测 | Arya.ai 集成成本高；先用规则+LLM 覆盖 80% | V2：有真实伪造案例后 |
+| 多租户/SaaS | MVP 先服务单客户 | V3：商业化阶段 |
+| OAuth / SSO | API Key 够用 | V2 |
+| 移动端 | 飞书消息卡片已覆盖移动场景 | 不急 |
 
 ---
 
-*Generated: 2026-03-11 | Context: Ashley Chen — Product Thinking × AI in Finance*
+## V1 → V2 迭代路线（上线后）
+
+```
+V1（Week 4 上线）
+  全量 OCR 扫描 + 10 条规则 + Claude 审计 + 飞书通知
+    │
+V1.1（上线后 2 周）
+  基于客户反馈补规则 + 飞书审批流 + 批量导入
+    │
+V1.2（上线后 1 月）
+  历史数据分析 → 简单统计基线（均值±2σ）→ 偏差预警
+    │
+V2（上线后 2-3 月）
+  独立 Dashboard + Salesforce 供应商同步 + 多租户
+    │
+V3（上线后 4-6 月）
+  Neo4j 图谱 + LSTM 动态基线 + 伪造检测 + SaaS 商业化
+```
+
+---
+
+*Updated: 2026-03-12 | 4-Week MVP Plan | Ashley Chen — Product Thinking × AI in Finance*

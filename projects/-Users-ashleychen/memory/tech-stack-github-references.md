@@ -518,5 +518,136 @@ Bach Concur MCP Server 已经把 Concur API 封装成了 MCP server，
 
 ---
 
+## 七、补充发现（深度研究 Agent 结果）
+
+> 以下项目来自后台 agent 的深度搜索，补充了几个在主文档中未覆盖的重要项目和架构模式。
+
+### A. 额外重要项目
+
+#### 1. PaddleOCR ⭐ 60K+ — 中国发票 OCR 的事实标准
+- **Repo**: [PaddlePaddle/PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)
+- **Tech**: Python, PaddlePaddle, CUDA, ONNX Runtime
+- **核心能力**:
+  - PP-StructureV3：表格识别 + 关键信息提取（KIE）
+  - LayoutLMv2/LayoutXLM：文档布局理解
+  - 100+ 语言支持
+- **与你的关系**: 如果你们现有的国内 OCR 引擎不够好，PaddleOCR 的 PP-Structure 模块可以直接用于中国发票的结构化提取。60K stars 说明工业级成熟度。
+
+#### 2. Firefly III ⭐ 17K+ — 财务管理的规则引擎参考
+- **Repo**: [firefly-iii/firefly-iii](https://github.com/firefly-iii/firefly-iii)
+- **Tech**: PHP (Laravel), MySQL/PostgreSQL
+- **参考价值**:
+  - **规则驱动的交易自动化** — 用户定义规则自动分类、标记、转换交易
+  - **双重记账审计追踪** — 每笔交易有平衡记录，审计天然内嵌
+  - **模块化数据导入** — Data Importer 作为独立服务通过 API 喂数据
+- **学什么**: 它的规则引擎设计（条件 → 动作）跟你的费用审核规则高度相似
+
+#### 3. invoice2data ⭐ 2.1K — 模板化发票提取
+- **Repo**: [invoice-x/invoice2data](https://github.com/invoice-x/invoice2data)
+- **Tech**: Python, YAML 模板, 多 OCR 后端
+- **核心模式**:
+  - YAML 模板定义每个供应商/发票格式的正则提取规则
+  - 管线：PDF 文本提取 → 模板匹配 → 正则提取 → 结构化输出
+  - 可插拔 OCR 后端（pdftotext, Tesseract, Google Cloud Vision）
+- **学什么**: 对**已知格式的中国发票**，模板化提取仍然比 LLM 更快更准更便宜
+
+#### 4. docTR ⭐ 5.8K — 轻量级 OCR 库
+- **Repo**: [mindee/doctr](https://github.com/mindee/doctr)
+- **Tech**: Python, PyTorch/TensorFlow 双框架
+- **特点**: 3 行代码完成基础 OCR，有 ONNX 轻量推理版本
+- **与 PaddleOCR 的区别**: 更轻量、更好的开发体验，适合快速原型
+
+#### 5. Jube AML Transaction Monitoring — 完整金融监控参考架构
+- **Repo**: [jube-home/aml-fraud-transaction-monitoring](https://github.com/jube-home/aml-fraud-transaction-monitoring)
+- **Tech**: C# (.NET), PostgreSQL, Redis, Docker/K8s
+- **架构亮点**:
+  - **Rule + ML 混合检测**: 阈值规则 + 速率检查 + 聚合统计 + ML 模型
+  - **实时交易监控**: 低延迟处理
+  - **工作流驱动的案件管理**: 自动升级 + 完整审计追踪
+  - **多租户支持**
+- **学什么**: 这是**最完整的金融监控参考架构**，特别是 case management workflow 和 audit trail 设计
+
+#### 6. RuleHub — Policy-as-Code + LLM
+- **Repo**: [rulehub/rulehub](https://github.com/rulehub/rulehub)
+- **Tech**: OPA/Kyverno, Prometheus, OpenTelemetry
+- **核心模式**:
+  - **Policy-as-Code** 框架，支持合规框架映射（EU AI Act, NIST, ISO）
+  - **Signed rule bundles** — 规则包签名、可复现、有证据链
+  - LLMSec 模块做 prompt/output 防护
+- **学什么**: 规则签名 + 证据链的设计，对审计合规场景很有价值
+
+#### 7. Opik ⭐ 5K+ — LLM 应用的评测与监控
+- **Repo**: [comet-ml/opik](https://github.com/comet-ml/opik)
+- **Tech**: Python, LLM tracing/evaluation
+- **参考价值**: LLM 输出的在线评测规则和 guardrails，用于监控 LLM 审计决策的质量
+
+### B. 关键架构原则（从所有项目中提炼）
+
+```
+从 20+ 个开源项目中提炼出的 5 条架构原则：
+
+1. "LLM Advises, Rules Decide"（来自 compliance-framework + RuleHub）
+   → LLM 提供建议和解释，最终决策由确定性规则做出
+   → 保证可审计性和一致性
+   → 你的产品已经在这么做了 ✓
+
+2. "Template for Known, LLM for Unknown"（来自 invoice2data + Sparrow）
+   → 已知格式（中国版式发票）用模板化提取（快、准、便宜）
+   → 未知格式（海外凭证）用 Vision LLM（灵活但贵）
+   → 你的分层 OCR 设计跟这个原则一致 ✓
+
+3. "Unified API, Multiple Backends"（来自 PyOD + Sparrow）
+   → PyOD 50+ 算法一个 API、Sparrow 多 LLM 一个接口
+   → 你的规则引擎也应该有统一接口，背后切换引擎
+
+4. "Double-Entry for Audit Trail"（来自 Firefly III）
+   → 每个操作都有对应的反向记录
+   → 你的 immutable audit log 设计跟这个思路一致 ✓
+
+5. "Case Management as Core Workflow"（来自 Jube AML）
+   → 异常检出后的处理流程（调查→升级→处理→关闭）
+   → 你的 Dashboard "通过/打回/调查" 三按钮是最小可行版本
+   → V3 可以参考 Jube 做完整 case management
+```
+
+### C. 更新后的技术选型总览
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│  COMPLETE TECH STACK (with GitHub references)                      │
+│                                                                    │
+│  Layer 1: Deterministic Processing                                │
+│  ├── GoRules Zen (rule engine)          github.com/gorules/zen    │
+│  ├── invoice2data (template extraction) invoice-x/invoice2data   │
+│  ├── PaddleOCR (Chinese invoice)        PaddlePaddle/PaddleOCR   │
+│  └── PostgreSQL + Redis (data + cache)                            │
+│                                                                    │
+│  Layer 2: AI-Powered Processing                                    │
+│  ├── Sparrow (document pipeline)        katanaml/sparrow          │
+│  ├── Claude Vision (overseas OCR)       Anthropic API             │
+│  ├── Claude Sonnet (reasoning)          Anthropic API             │
+│  └── Opik (LLM monitoring)             comet-ml/opik             │
+│                                                                    │
+│  Layer 3: Analytics & Detection                                    │
+│  ├── PyOD (anomaly algorithms)          yzhao062/pyod             │
+│  ├── Finomaly (financial anomaly)       Barisaksel/finomaly       │
+│  └── Plotly (visualization)                                       │
+│                                                                    │
+│  Layer 4: Integration & Infrastructure                             │
+│  ├── concurapi (Concur SDK)             PyPI                      │
+│  ├── FastAPI (backend)                                            │
+│  ├── Firefly III patterns (audit trail) firefly-iii/firefly-iii   │
+│  └── Jube patterns (case management)    jube-home/...             │
+│                                                                    │
+│  Architecture Patterns Referenced:                                │
+│  ├── SmartAudit-LLM (multi-agent audit) Sourish-Kanna/...        │
+│  ├── compliance-framework (LLM+rules)                             │
+│  ├── RuleHub (policy-as-code)           rulehub/rulehub           │
+│  └── Finance-LLMs (industry cases)      kennethleungty/...        │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 *Updated: 2026-03-12*
 *OpenClaw — Tech Stack & GitHub References*

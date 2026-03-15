@@ -22,3 +22,8 @@ plugins/
 # 同步：skills + memory
 !skills/
 !projects/-Users-ashleychen/memory/
+
+# gstack: 不同步构建产物和依赖
+.claude/skills/gstack/node_modules/
+.claude/skills/gstack/browse/dist/
+.claude/skills/gstack/bun.lock

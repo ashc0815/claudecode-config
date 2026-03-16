@@ -4,9 +4,11 @@
 User invokes `/content-agent` followed by a topic and optional mode flag.
 
 ```
-/content-agent --deep [topic]    → Full 5-stage pipeline (anchor post, ~1x/week)
-/content-agent --fast [topic]    → Fast 2-stage pipeline (reactive post, ~1-2x/week)
-/content-agent [topic]           → Defaults to --deep
+/content-agent --deep [topic]              → Full 5-stage pipeline (anchor post, ~1x/week)
+/content-agent --fast [topic]              → Fast 2-stage pipeline (reactive post, ~1-2x/week)
+/content-agent --autopilot [topic]         → Full pipeline, zero interruptions, only final output shown
+/content-agent --autopilot --fast [topic]  → Fast pipeline, zero interruptions
+/content-agent [topic]                     → Defaults to --deep
 ```
 
 ## Purpose
@@ -29,6 +31,71 @@ Orchestrator that runs the complete Plan → Execute → Verify pipeline across 
 - You want to publish within the hour
 
 **Rule of thumb:** 1 deep post + 1-2 fast posts per week. Fast posts are often more authentic and get more engagement precisely because they're reactive and unpolished.
+
+---
+
+## `--autopilot` MODE: Zero-Interruption Pipeline
+
+**The core principle:** Run the entire pipeline end-to-end without asking the user anything. Every decision point that would normally require user input has a pre-defined auto-decision rule in each skill's "Autopilot Decision Rules" section.
+
+### How it works
+1. Combines with `--deep` (default) or `--fast`
+2. Skips ALL plan confirmations and intermediate gates
+3. Each skill uses its built-in autopilot decision rules to handle blockers
+4. All auto-decisions are logged in a decision trail
+5. **Only stops at the very end** — presents the final script + a summary of all auto-decisions made
+
+### Accepting auto-discovered topics
+When called from `--morning` mode, the topic and anchor are pre-selected by brave-research SCAN mode. In this case:
+- Skip the research stage's topic exploration — go straight to targeted research on the provided anchor
+- Pass the anchor source URL and quote directly to kobo-optimizer for the opening
+- The anchor type (News / Report / Announcement) determines the opening voice automatically
+
+### Autopilot Execution Flow (--deep)
+```
+START → brave-research (auto-decide on evidence quality)
+      → script-analyzer (auto-narrow if vague, auto-fix gaps)
+      → blindspot-detector (auto-apply fixes, auto-downgrade if needed)
+      → kobo-optimizer (auto-select anchor, auto-revise)
+      → content-memory log (auto)
+      → OUTPUT: final scripts + decision trail
+```
+
+### Autopilot Execution Flow (--fast)
+```
+START → script-analyzer (auto-narrow if vague)
+      → kobo-optimizer (auto-select anchor, auto-revise)
+      → OUTPUT: final scripts + decision trail
+```
+
+### Decision Trail Format
+At the end of autopilot output, always append:
+```
+## Autopilot Decision Trail
+[STAGE 1] Research: [what happened] — auto-decision: [what was decided]
+[STAGE 2] Analysis: [what happened] — auto-decision: [what was decided]
+[STAGE 3] Stress Test: [what happened] — auto-decision: [what was decided]
+[STAGE 4] Script: [what happened] — auto-decision: [what was decided]
+
+## Items Flagged for User Review
+- [Any "NEEDS USER REVIEW" flags from skills]
+- [Any auto-downgrades that significantly changed the content angle]
+- [Any data-light tags where user might want to add their own data]
+
+## Quick Actions
+- Happy with the script? → Publish it
+- Want to adjust? → Tell me what to change (e.g., "make the hook stronger", "add more data")
+- Want full control? → Re-run with /content-agent --deep [topic] for step-by-step mode
+```
+
+### Autopilot Quality Safeguards
+Even in autopilot mode, these are NON-NEGOTIABLE:
+1. Never fabricate statistics, quotes, or personal experiences
+2. Never output a script that contradicts found evidence
+3. Never suppress critical counterarguments
+4. Always tag observer framing when no personal story is available
+5. Always note data-light status when evidence is weak
+6. The reflection loop in kobo-optimizer still runs — autopilot skips human checkpoints, not quality checks
 
 ---
 

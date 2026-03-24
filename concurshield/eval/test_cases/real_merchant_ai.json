@@ -1,0 +1,13 @@
+[
+  {
+    "case_id": "RMAI_001",
+    "category": "real_merchant_ai",
+    "image_path": "test_receipts/real_merchant_ai_invoice/starbucks_ai.png",
+    "description": "真实星巴克商户名，但发票由 AI 生成",
+    "expected_tier": "T1",
+    "expected_tier_range": ["T1", "T2"],
+    "expected_signals": [],
+    "is_known_blind_spot": true,
+    "notes": "MVP 已知盲区。pHash 不触发。商户验证通过。检测主要靠元数据缺失和视觉异常。"
+  }
+]

@@ -1,0 +1,13 @@
+[
+  {
+    "case_id": "NORMAL_001",
+    "category": "normal",
+    "image_path": "test_receipts/normal/receipt1.jpg",
+    "description": "正常中文餐饮收据，完整行项和正确税额",
+    "expected_tier": "T1",
+    "expected_tier_range": ["T1"],
+    "expected_signals": [],
+    "is_known_blind_spot": false,
+    "notes": "基线测试。非 T1 说明误报。"
+  }
+]

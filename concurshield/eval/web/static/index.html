@@ -52,6 +52,24 @@
     .matrix-diag { background: #238636; color: #fff; }
     .matrix-off { background: #21262d; color: #8b949e; }
     .matrix-off-bad { background: #da3633; color: #fff; }
+    /* 搜索和筛选 */
+    .filter-bar { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+    .filter-bar input { padding: 8px 12px; background: #0d1117; border: 1px solid #30363d;
+                         border-radius: 6px; color: #c9d1d9; font-size: 14px; width: 240px; }
+    .filter-bar select { padding: 8px 12px; background: #0d1117; border: 1px solid #30363d;
+                          border-radius: 6px; color: #c9d1d9; font-size: 14px; }
+    /* 可展开行 */
+    .expandable { cursor: pointer; }
+    .expand-content { display: none; padding: 16px; background: #0d1117; border-left: 3px solid #30363d; }
+    .expand-content.show { display: block; }
+    .expand-content pre { background: #161b22; padding: 12px; border-radius: 6px;
+                           font-size: 12px; overflow-x: auto; color: #8b949e; max-height: 300px; }
+    /* 状态点 */
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .dot-green { background: #3fb950; }
+    .dot-red { background: #f85149; }
+    .dot-gray { background: #484f58; }
+    .dot-orange { background: #f0883e; }
   </style>
 </head>
 <body>
@@ -100,6 +118,7 @@ async function loadExperiment(id) {
     renderOverview(currentData);
     renderScores(currentData);
     renderMatrix(currentData);
+    renderCases(currentData);
   } catch(e) { renderEmpty(); }
 }
 async function loadExperimentList() {
@@ -201,9 +220,110 @@ function renderMatrix(data) {
   html += '<p style="margin-top:12px;font-size:13px;color:#8b949e;">对角线=正确分类（绿色），非对角线非零=误分类（红色）</p>';
   document.getElementById('tab-matrix').innerHTML = html;
 }
+// === 用例详情 Tab ===
+function renderCases(data) {
+  const results = data.results || [];
+  let html = '<div class="filter-bar">';
+  html += '<input type="text" id="case-search" placeholder="搜索 case_id 或描述..." oninput="filterCases()">';
+  html += '<select id="case-filter" onchange="filterCases()">';
+  html += '<option value="all">全部状态</option><option value="pass">✅ 通过</option>';
+  html += '<option value="fail">❌ 失败</option><option value="error">⚠️ 错误</option>';
+  html += '</select>';
+  html += '<select id="cat-filter" onchange="filterCases()">';
+  html += '<option value="all">全部类别</option>';
+  const cats = [...new Set(results.map(r => r.category))];
+  cats.forEach(c => html += `<option value="${c}">${c}</option>`);
+  html += '</select></div>';
+  html += '<div class="table-wrap"><table><thead><tr>';
+  html += '<th></th><th>ID</th><th>类别</th><th>预期</th><th>实际</th><th>分数</th><th>耗时</th><th>状态</th>';
+  html += '</tr></thead><tbody id="cases-tbody">';
+  results.forEach((r, i) => {
+    const status = r.error ? 'error' : (r.tier_match ? 'pass' : 'fail');
+    const dotCls = status === 'pass' ? 'dot-green' : status === 'fail' ? 'dot-red' : 'dot-orange';
+    const statusText = status === 'pass' ? '✅' : status === 'fail' ? '❌' : '⚠️';
+    const tierColor = r.actual_tier === 'T1' ? 'green' : r.actual_tier === 'T2' ? 'yellow' :
+                      r.actual_tier === 'T3' ? 'orange' : 'red';
+    html += `<tr class="expandable case-row" data-status="${status}" data-cat="${r.category}"
+                 data-search="${(r.case_id + ' ' + (r.description || '')).toLowerCase()}"
+                 onclick="toggleExpand(${i})">
+      <td><span class="dot ${dotCls}"></span></td>
+      <td><strong>${r.case_id}</strong></td>
+      <td>${r.category}</td>
+      <td>${(r.expected_tier_range || []).join('/')}</td>
+      <td><span class="badge badge-${tierColor}">${r.actual_tier || '-'}</span></td>
+      <td>${r.actual_score ? r.actual_score.toFixed(1) : '-'}</td>
+      <td>${r.duration_ms ? r.duration_ms + 'ms' : '-'}</td>
+      <td>${statusText}${r.is_false_positive ? ' 误报' : ''}${r.is_false_negative ? ' 漏报' : ''}${r.is_severe_miss ? ' ‼️严重' : ''}</td>
+    </tr>`;
+    html += `<tr><td colspan="8"><div class="expand-content" id="expand-${i}">
+      <p><strong>描述：</strong>${r.description || '-'}</p>
+      <p><strong>触发信号：</strong>${(r.actual_signals || []).join(', ') || '无'}</p>
+      <p><strong>预期信号：</strong>${(r.expected_signals || []).join(', ') || '无'}</p>
+      ${r.error ? `<p style="color:#f85149;"><strong>错误：</strong>${r.error}</p>` : ''}
+      ${r.scores ? `<p><strong>评分详情：</strong></p><pre>${JSON.stringify(r.scores, null, 2)}</pre>` : ''}
+    </div></td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  document.getElementById('tab-cases').innerHTML = html;
+}
+function toggleExpand(i) {
+  document.getElementById('expand-' + i).classList.toggle('show');
+}
+function filterCases() {
+  const search = document.getElementById('case-search').value.toLowerCase();
+  const status = document.getElementById('case-filter').value;
+  const cat = document.getElementById('cat-filter').value;
+  document.querySelectorAll('.case-row').forEach(row => {
+    const matchSearch = !search || row.dataset.search.includes(search);
+    const matchStatus = status === 'all' || row.dataset.status === status;
+    const matchCat = cat === 'all' || row.dataset.cat === cat;
+    const show = matchSearch && matchStatus && matchCat;
+    row.style.display = show ? '' : 'none';
+    row.nextElementSibling.style.display = show ? '' : 'none';
+  });
+}
+// === 数据集 Tab ===
+async function renderDataset() {
+  try {
+    const res = await fetch('/api/dataset');
+    const data = await res.json();
+    const byCategory = data.by_category || {};
+    let total = data.total || 0, withImage = 0;
+    const grouped = {};
+    for (const [cat, cases] of Object.entries(byCategory)) {
+      grouped[cat] = cases;
+      cases.forEach(c => { if (c.image_exists) withImage++; });
+    }
+    let html = '<h3 style="margin-bottom:16px;">测试用例库</h3>';
+    html += `<div class="cards">
+      <div class="card"><div class="label">总用例</div><div class="value">${total}</div></div>
+      <div class="card"><div class="label">有图片</div><div class="value green">${withImage}</div></div>
+      <div class="card"><div class="label">缺图片</div><div class="value ${total-withImage>0?'red':'green'}">${total - withImage}</div></div>
+    </div>`;
+    for (const [cat, cases] of Object.entries(grouped)) {
+      const missing = cases.filter(c => !c.image_exists).length;
+      html += `<div style="margin-bottom:16px;">`;
+      html += `<h4 style="margin-bottom:8px;">${cat} (${cases.length} 个${missing > 0 ? ', <span class="red">' + missing + ' 缺图片</span>' : ''})</h4>`;
+      html += '<table><thead><tr><th>ID</th><th>描述</th><th>预期 Tier</th><th>图片</th><th>盲区</th></tr></thead><tbody>';
+      cases.forEach(c => {
+        html += `<tr>
+          <td>${c.case_id}</td><td>${c.description || ''}</td>
+          <td>${(c.expected_tier_range || []).join('/')}</td>
+          <td>${c.image_exists ? '<span class="green">✅</span>' : '<span class="red">❌</span>'}</td>
+          <td>${c.is_known_blind_spot ? '⚠️' : '-'}</td>
+        </tr>`;
+      });
+      html += '</tbody></table></div>';
+    }
+    document.getElementById('tab-dataset').innerHTML = html;
+  } catch(e) {
+    document.getElementById('tab-dataset').innerHTML = '<div class="loading">加载数据集失败</div>';
+  }
+}
 function showRunDialog() { alert('请使用命令行运行评测：python -m eval.run_eval --baseline'); }
 loadExperimentList();
 loadExperiment('latest');
+renderDataset();
 </script>
 </body>
 </html>

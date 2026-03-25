@@ -31,6 +31,27 @@
     .btn-primary { background: #238636; border-color: #238636; color: #fff; }
     .btn-primary:hover { background: #2ea043; }
     .loading { text-align: center; padding: 40px; color: #8b949e; }
+    /* 表格 */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #21262d; }
+    th { background: #161b22; color: #8b949e; font-weight: 600; font-size: 12px; text-transform: uppercase; }
+    td { color: #c9d1d9; }
+    tr:hover { background: #1c2128; }
+    /* Badge */
+    .badge { padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+    .badge-green { background: #238636; color: #fff; }
+    .badge-yellow { background: #9e6a03; color: #fff; }
+    .badge-red { background: #da3633; color: #fff; }
+    .badge-gray { background: #30363d; color: #8b949e; }
+    /* 混淆矩阵 */
+    .matrix { display: inline-grid; gap: 2px; }
+    .matrix-cell { width: 80px; height: 50px; display: flex; align-items: center; justify-content: center;
+                   font-weight: 700; font-size: 16px; border-radius: 4px; }
+    .matrix-header { background: transparent; color: #8b949e; font-size: 12px; font-weight: 600; }
+    .matrix-diag { background: #238636; color: #fff; }
+    .matrix-off { background: #21262d; color: #8b949e; }
+    .matrix-off-bad { background: #da3633; color: #fff; }
   </style>
 </head>
 <body>
@@ -77,6 +98,8 @@ async function loadExperiment(id) {
     if (!res.ok) { renderEmpty(); return; }
     currentData = await res.json();
     renderOverview(currentData);
+    renderScores(currentData);
+    renderMatrix(currentData);
   } catch(e) { renderEmpty(); }
 }
 async function loadExperimentList() {
@@ -129,6 +152,54 @@ function renderOverview(data) {
 function renderEmpty() {
   document.getElementById('overview-cards').innerHTML = '<div class="loading">暂无评测结果。点击右上角"运行评测"开始。</div>';
   document.getElementById('category-accuracy').innerHTML = '';
+}
+function renderScores(data) {
+  const scores = (data.summary || data).score_summary || {};
+  let html = '<h3 style="margin-bottom:16px;font-size:16px;">多维评分</h3>';
+  html += '<div class="table-wrap"><table><thead><tr>';
+  html += '<th>评估器</th><th>得分</th><th>标签</th><th>说明</th>';
+  html += '</tr></thead><tbody>';
+  for (const [name, info] of Object.entries(scores)) {
+    const score = typeof info === 'object' ? (info.mean || info.avg_score || info.score || 0) : info;
+    const pct = (score * 100).toFixed(0);
+    const color = pct >= 80 ? 'green' : pct >= 50 ? 'yellow' : 'red';
+    const label = typeof info === 'object' ? (info.label || info.avg_label || '-') : '-';
+    const reason = typeof info === 'object' ? (info.reason || '-') : '-';
+    html += `<tr>
+      <td><strong>${name}</strong></td>
+      <td>
+        <span class="badge badge-${color}">${pct}%</span>
+        <div class="progress-bar" style="width:120px;display:inline-block;vertical-align:middle;margin-left:8px;">
+          <div class="progress-fill fill-${color}" style="width:${pct}%"></div>
+        </div>
+      </td>
+      <td>${label}</td>
+      <td style="color:#8b949e;font-size:13px;">${reason}</td>
+    </tr>`;
+  }
+  html += '</tbody></table></div>';
+  document.getElementById('tab-scores').innerHTML = html;
+}
+function renderMatrix(data) {
+  const cm = (data.summary || data).confusion_matrix || {};
+  const tiers = ['T1', 'T2', 'T3', 'T4'];
+  let html = '<h3 style="margin-bottom:16px;font-size:16px;">混淆矩阵（预期 vs 实际）</h3>';
+  html += '<div style="overflow-x:auto;"><div class="matrix" style="grid-template-columns:repeat(5,auto);">';
+  html += '<div class="matrix-cell matrix-header"></div>';
+  tiers.forEach(t => html += `<div class="matrix-cell matrix-header">预测 ${t}</div>`);
+  tiers.forEach(expected => {
+    html += `<div class="matrix-cell matrix-header">预期 ${expected}</div>`;
+    tiers.forEach(actual => {
+      const val = (cm[expected] || {})[actual] || 0;
+      const isDiag = expected === actual;
+      const isBad = !isDiag && val > 0;
+      const cls = isDiag ? 'matrix-diag' : (isBad ? 'matrix-off-bad' : 'matrix-off');
+      html += `<div class="matrix-cell ${cls}">${val}</div>`;
+    });
+  });
+  html += '</div></div>';
+  html += '<p style="margin-top:12px;font-size:13px;color:#8b949e;">对角线=正确分类（绿色），非对角线非零=误分类（红色）</p>';
+  document.getElementById('tab-matrix').innerHTML = html;
 }
 function showRunDialog() { alert('请使用命令行运行评测：python -m eval.run_eval --baseline'); }
 loadExperimentList();

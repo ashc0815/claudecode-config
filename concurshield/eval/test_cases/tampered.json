@@ -1,0 +1,13 @@
+[
+  {
+    "case_id": "TAMPER_001",
+    "category": "tampered",
+    "image_path": "test_receipts/tampered/total_changed.jpg",
+    "description": "总额从 58.30 改为 158.30，行项未修改",
+    "expected_tier": "T3",
+    "expected_tier_range": ["T3", "T4"],
+    "expected_signals": ["MATH_001"],
+    "is_known_blind_spot": false,
+    "notes": "测试规则引擎检测总额与行项不一致"
+  }
+]

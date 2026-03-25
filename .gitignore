@@ -2,6 +2,8 @@
 projects/*/**.jsonl
 projects/*/sessions-index.json
 
+__pycache__/
+
 # 不同步：缓存和临时文件
 cache/
 image-cache/
@@ -22,3 +24,4 @@ plugins/
 # 同步：skills + memory
 !skills/
 !projects/-Users-ashleychen/memory/
+.eval_history/

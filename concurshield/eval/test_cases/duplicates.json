@@ -1,0 +1,13 @@
+[
+  {
+    "case_id": "DUP_001",
+    "category": "duplicates",
+    "image_path": "test_receipts/duplicates/date_changed.jpg",
+    "description": "与 NORMAL_001 相同收据但日期被修改",
+    "expected_tier": "T3",
+    "expected_tier_range": ["T3", "T4"],
+    "expected_signals": ["HASH_DUP"],
+    "is_known_blind_spot": false,
+    "notes": "需先运行 NORMAL_001 使哈希入库"
+  }
+]

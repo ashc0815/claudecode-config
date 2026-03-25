@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>ConcurShield Eval Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, sans-serif; }
+    .nav { background: #161b22; padding: 16px 24px; border-bottom: 1px solid #30363d;
+           display: flex; align-items: center; justify-content: space-between; }
+    .nav h1 { font-size: 18px; font-weight: 600; }
+    .tabs { display: flex; gap: 0; background: #161b22; border-bottom: 1px solid #30363d; padding: 0 24px; }
+    .tab { padding: 12px 20px; cursor: pointer; border-bottom: 2px solid transparent; color: #8b949e; }
+    .tab.active { color: #c9d1d9; border-bottom-color: #f78166; }
+    .tab:hover { color: #c9d1d9; }
+    .content { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; }
+    .card .label { font-size: 12px; color: #8b949e; text-transform: uppercase; margin-bottom: 8px; }
+    .card .value { font-size: 28px; font-weight: 700; }
+    .card .sub { font-size: 13px; color: #8b949e; margin-top: 4px; }
+    .progress-bar { height: 6px; background: #21262d; border-radius: 3px; overflow: hidden; margin-top: 8px; }
+    .progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+    .green { color: #3fb950; } .red { color: #f85149; } .yellow { color: #d29922; } .orange { color: #f0883e; }
+    .fill-green { background: #238636; } .fill-red { background: #da3633; } .fill-yellow { background: #9e6a03; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: 1px solid #30363d;
+           background: #21262d; color: #c9d1d9; cursor: pointer; font-size: 14px; }
+    .btn:hover { background: #30363d; }
+    .btn-primary { background: #238636; border-color: #238636; color: #fff; }
+    .btn-primary:hover { background: #2ea043; }
+    .loading { text-align: center; padding: 40px; color: #8b949e; }
+    /* 表格 */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #21262d; }
+    th { background: #161b22; color: #8b949e; font-weight: 600; font-size: 12px; text-transform: uppercase; }
+    td { color: #c9d1d9; }
+    tr:hover { background: #1c2128; }
+    /* Badge */
+    .badge { padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+    .badge-green { background: #238636; color: #fff; }
+    .badge-yellow { background: #9e6a03; color: #fff; }
+    .badge-red { background: #da3633; color: #fff; }
+    .badge-gray { background: #30363d; color: #8b949e; }
+    /* 混淆矩阵 */
+    .matrix { display: inline-grid; gap: 2px; }
+    .matrix-cell { width: 80px; height: 50px; display: flex; align-items: center; justify-content: center;
+                   font-weight: 700; font-size: 16px; border-radius: 4px; }
+    .matrix-header { background: transparent; color: #8b949e; font-size: 12px; font-weight: 600; }
+    .matrix-diag { background: #238636; color: #fff; }
+    .matrix-off { background: #21262d; color: #8b949e; }
+    .matrix-off-bad { background: #da3633; color: #fff; }
+    /* 搜索和筛选 */
+    .filter-bar { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+    .filter-bar input { padding: 8px 12px; background: #0d1117; border: 1px solid #30363d;
+                         border-radius: 6px; color: #c9d1d9; font-size: 14px; width: 240px; }
+    .filter-bar select { padding: 8px 12px; background: #0d1117; border: 1px solid #30363d;
+                          border-radius: 6px; color: #c9d1d9; font-size: 14px; }
+    /* 可展开行 */
+    .expandable { cursor: pointer; }
+    .expand-content { display: none; padding: 16px; background: #0d1117; border-left: 3px solid #30363d; }
+    .expand-content.show { display: block; }
+    .expand-content pre { background: #161b22; padding: 12px; border-radius: 6px;
+                           font-size: 12px; overflow-x: auto; color: #8b949e; max-height: 300px; }
+    /* 状态点 */
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .dot-green { background: #3fb950; }
+    .dot-red { background: #f85149; }
+    .dot-gray { background: #484f58; }
+    .dot-orange { background: #f0883e; }
+    /* 对比 */
+    .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .delta { font-size: 13px; margin-left: 8px; }
+    .delta-up { color: #3fb950; }
+    .delta-down { color: #f85149; }
+    .delta-same { color: #8b949e; }
+    /* 弹窗 */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                      background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: #161b22; border: 1px solid #30363d; border-radius: 12px;
+              padding: 24px; width: 480px; max-width: 90vw; }
+    .modal h3 { margin-bottom: 16px; }
+    .modal label { display: block; margin-bottom: 12px; font-size: 14px; color: #8b949e; }
+    .modal input[type=text] { width: 100%; padding: 8px 12px; background: #0d1117;
+                               border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; margin-top: 4px; }
+    .modal .checkbox-group { margin-bottom: 12px; }
+    .modal .checkbox-group label { display: inline-flex; align-items: center; gap: 6px;
+                                    margin-right: 12px; cursor: pointer; color: #c9d1d9; }
+    /* 实时进度 */
+    .run-log { max-height: 300px; overflow-y: auto; font-size: 13px; font-family: monospace;
+                background: #0d1117; padding: 12px; border-radius: 6px; margin-top: 12px; }
+    .run-log .log-pass { color: #3fb950; }
+    .run-log .log-fail { color: #f85149; }
+    .run-log .log-skip { color: #484f58; }
+  </style>
+</head>
+<body>
+<nav class="nav">
+  <h1>🛡️ ConcurShield Eval Dashboard</h1>
+  <div>
+    <select id="experiment-select" class="btn" onchange="loadExperiment(this.value)">
+      <option value="latest">最新结果</option>
+    </select>
+    <button class="btn btn-primary" onclick="showRunDialog()">▶ 运行评测</button>
+  </div>
+</nav>
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('overview')">总览</div>
+  <div class="tab" onclick="switchTab('scores')">评分</div>
+  <div class="tab" onclick="switchTab('matrix')">混淆矩阵</div>
+  <div class="tab" onclick="switchTab('cases')">用例详情</div>
+  <div class="tab" onclick="switchTab('dataset')">数据集</div>
+  <div class="tab" onclick="switchTab('compare')">对比</div>
+</div>
+<div class="content">
+  <div id="tab-overview" class="tab-content active">
+    <div class="cards" id="overview-cards"><div class="loading">加载中...</div></div>
+    <div id="category-accuracy"></div>
+  </div>
+  <div id="tab-scores" class="tab-content"><div class="loading">评分详情（Prompt 3 实现）</div></div>
+  <div id="tab-matrix" class="tab-content"><div class="loading">混淆矩阵（Prompt 3 实现）</div></div>
+  <div id="tab-cases" class="tab-content"><div class="loading">用例详情（Prompt 4 实现）</div></div>
+  <div id="tab-dataset" class="tab-content"><div class="loading">数据集管理（Prompt 4 实现）</div></div>
+  <div id="tab-compare" class="tab-content"><div class="loading">实验对比（Prompt 5 实现）</div></div>
+</div>
+<!-- 运行弹窗 -->
+<div class="modal-overlay" id="run-modal">
+  <div class="modal">
+    <h3>▶ 运行评测</h3>
+    <label>实验名称：<input type="text" id="run-name" placeholder="如：v1.1 修复信号检测"></label>
+    <div class="checkbox-group">
+      <label><input type="checkbox" value="normal" checked> normal</label>
+      <label><input type="checkbox" value="tampered" checked> tampered</label>
+      <label><input type="checkbox" value="ai_generated" checked> ai_generated</label>
+      <label><input type="checkbox" value="prompt_injection" checked> prompt_injection</label>
+      <label><input type="checkbox" value="duplicates" checked> duplicates</label>
+      <label><input type="checkbox" value="real_merchant_ai" checked> real_merchant_ai</label>
+    </div>
+    <label><input type="checkbox" id="run-baseline"> 设为 baseline</label>
+    <div style="display:flex;gap:12px;margin-top:16px;">
+      <button class="btn btn-primary" onclick="startRun()">开始运行</button>
+      <button class="btn" onclick="hideRunDialog()">取消</button>
+    </div>
+    <div class="run-log" id="run-log" style="display:none;"></div>
+  </div>
+</div>
+<script>
+const TAB_NAMES = {overview:'总览',scores:'评分',matrix:'混淆矩阵',cases:'用例详情',dataset:'数据集',compare:'对比'};
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.textContent.trim() === TAB_NAMES[name]));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+}
+let currentData = null;
+async function loadExperiment(id) {
+  const url = id === 'latest' ? '/api/latest' : '/api/experiment/' + id;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) { renderEmpty(); return; }
+    currentData = await res.json();
+    renderOverview(currentData);
+    renderScores(currentData);
+    renderMatrix(currentData);
+    renderCases(currentData);
+  } catch(e) { renderEmpty(); }
+}
+async function loadExperimentList() {
+  try {
+    const res = await fetch('/api/experiments');
+    const list = await res.json();
+    const sel = document.getElementById('experiment-select');
+    list.forEach(exp => {
+      const opt = document.createElement('option');
+      opt.value = exp.experiment_id;
+      opt.textContent = (exp.name || exp.experiment_id).substring(0, 30) + ' (' + (exp.created_at || '').substring(0, 10) + ')';
+      sel.appendChild(opt);
+    });
+  } catch(e) {}
+}
+function renderOverview(data) {
+  const s = data.summary || data;
+  const total = s.total_cases || 0, passed = s.passed || 0, failed = s.failed || 0, errors = s.errors || 0;
+  const fp = s.false_positive_rate || 0, fn = s.false_negative_rate || 0, severe = s.severe_miss_count || 0;
+  const pct = total > 0 ? (passed / total * 100).toFixed(1) : '0';
+  document.getElementById('overview-cards').innerHTML = `
+    <div class="card"><div class="label">准确率</div>
+      <div class="value ${pct >= 80 ? 'green' : pct >= 50 ? 'yellow' : 'red'}">${pct}%</div>
+      <div class="sub">${passed} / ${total} 通过</div>
+      <div class="progress-bar"><div class="progress-fill fill-green" style="width:${pct}%"></div></div></div>
+    <div class="card"><div class="label">失败</div>
+      <div class="value ${failed > 0 ? 'red' : 'green'}">${failed}</div><div class="sub">Tier 不匹配</div></div>
+    <div class="card"><div class="label">误报率</div>
+      <div class="value ${fp > 0.05 ? 'red' : fp > 0 ? 'yellow' : 'green'}">${(fp * 100).toFixed(1)}%</div>
+      <div class="sub">正常收据被误判</div></div>
+    <div class="card"><div class="label">漏报率</div>
+      <div class="value ${fn > 0.1 ? 'red' : fn > 0 ? 'yellow' : 'green'}">${(fn * 100).toFixed(1)}%</div>
+      <div class="sub">异常收据被放过</div></div>
+    <div class="card"><div class="label">严重漏报</div>
+      <div class="value ${severe > 0 ? 'red' : 'green'}">${severe}</div><div class="sub">T4 被判为 T1-T2</div></div>
+    <div class="card"><div class="label">运行错误</div>
+      <div class="value ${errors > 0 ? 'orange' : 'green'}">${errors}</div><div class="sub">图片缺失或 API 错误</div></div>`;
+  const acc = s.accuracy_by_category || {};
+  let h = '<h3 style="margin:24px 0 12px;font-size:16px;">按类别准确率</h3>';
+  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;">';
+  for (const [cat, info] of Object.entries(acc)) {
+    const a = (info.accuracy * 100).toFixed(0);
+    const c = a >= 80 ? 'green' : a >= 50 ? 'yellow' : 'red';
+    h += `<div class="card"><div class="label">${cat}</div><div class="value ${c}">${a}%</div>
+      <div class="sub">${info.passed}/${info.total} 通过</div>
+      <div class="progress-bar"><div class="progress-fill fill-${c}" style="width:${a}%"></div></div></div>`;
+  }
+  document.getElementById('category-accuracy').innerHTML = h + '</div>';
+}
+function renderEmpty() {
+  document.getElementById('overview-cards').innerHTML = '<div class="loading">暂无评测结果。点击右上角"运行评测"开始。</div>';
+  document.getElementById('category-accuracy').innerHTML = '';
+}
+function renderScores(data) {
+  const scores = (data.summary || data).score_summary || {};
+  let html = '<h3 style="margin-bottom:16px;font-size:16px;">多维评分</h3>';
+  html += '<div class="table-wrap"><table><thead><tr>';
+  html += '<th>评估器</th><th>得分</th><th>标签</th><th>说明</th>';
+  html += '</tr></thead><tbody>';
+  for (const [name, info] of Object.entries(scores)) {
+    const score = typeof info === 'object' ? (info.mean || info.avg_score || info.score || 0) : info;
+    const pct = (score * 100).toFixed(0);
+    const color = pct >= 80 ? 'green' : pct >= 50 ? 'yellow' : 'red';
+    const label = typeof info === 'object' ? (info.label || info.avg_label || '-') : '-';
+    const reason = typeof info === 'object' ? (info.reason || '-') : '-';
+    html += `<tr>
+      <td><strong>${name}</strong></td>
+      <td>
+        <span class="badge badge-${color}">${pct}%</span>
+        <div class="progress-bar" style="width:120px;display:inline-block;vertical-align:middle;margin-left:8px;">
+          <div class="progress-fill fill-${color}" style="width:${pct}%"></div>
+        </div>
+      </td>
+      <td>${label}</td>
+      <td style="color:#8b949e;font-size:13px;">${reason}</td>
+    </tr>`;
+  }
+  html += '</tbody></table></div>';
+  document.getElementById('tab-scores').innerHTML = html;
+}
+function renderMatrix(data) {
+  const cm = (data.summary || data).confusion_matrix || {};
+  const tiers = ['T1', 'T2', 'T3', 'T4'];
+  let html = '<h3 style="margin-bottom:16px;font-size:16px;">混淆矩阵（预期 vs 实际）</h3>';
+  html += '<div style="overflow-x:auto;"><div class="matrix" style="grid-template-columns:repeat(5,auto);">';
+  html += '<div class="matrix-cell matrix-header"></div>';
+  tiers.forEach(t => html += `<div class="matrix-cell matrix-header">预测 ${t}</div>`);
+  tiers.forEach(expected => {
+    html += `<div class="matrix-cell matrix-header">预期 ${expected}</div>`;
+    tiers.forEach(actual => {
+      const val = (cm[expected] || {})[actual] || 0;
+      const isDiag = expected === actual;
+      const isBad = !isDiag && val > 0;
+      const cls = isDiag ? 'matrix-diag' : (isBad ? 'matrix-off-bad' : 'matrix-off');
+      html += `<div class="matrix-cell ${cls}">${val}</div>`;
+    });
+  });
+  html += '</div></div>';
+  html += '<p style="margin-top:12px;font-size:13px;color:#8b949e;">对角线=正确分类（绿色），非对角线非零=误分类（红色）</p>';
+  document.getElementById('tab-matrix').innerHTML = html;
+}
+// === 用例详情 Tab ===
+function renderCases(data) {
+  const results = data.results || [];
+  let html = '<div class="filter-bar">';
+  html += '<input type="text" id="case-search" placeholder="搜索 case_id 或描述..." oninput="filterCases()">';
+  html += '<select id="case-filter" onchange="filterCases()">';
+  html += '<option value="all">全部状态</option><option value="pass">✅ 通过</option>';
+  html += '<option value="fail">❌ 失败</option><option value="error">⚠️ 错误</option>';
+  html += '</select>';
+  html += '<select id="cat-filter" onchange="filterCases()">';
+  html += '<option value="all">全部类别</option>';
+  const cats = [...new Set(results.map(r => r.category))];
+  cats.forEach(c => html += `<option value="${c}">${c}</option>`);
+  html += '</select></div>';
+  html += '<div class="table-wrap"><table><thead><tr>';
+  html += '<th></th><th>ID</th><th>类别</th><th>预期</th><th>实际</th><th>分数</th><th>耗时</th><th>状态</th>';
+  html += '</tr></thead><tbody id="cases-tbody">';
+  results.forEach((r, i) => {
+    const status = r.error ? 'error' : (r.tier_match ? 'pass' : 'fail');
+    const dotCls = status === 'pass' ? 'dot-green' : status === 'fail' ? 'dot-red' : 'dot-orange';
+    const statusText = status === 'pass' ? '✅' : status === 'fail' ? '❌' : '⚠️';
+    const tierColor = r.actual_tier === 'T1' ? 'green' : r.actual_tier === 'T2' ? 'yellow' :
+                      r.actual_tier === 'T3' ? 'orange' : 'red';
+    html += `<tr class="expandable case-row" data-status="${status}" data-cat="${r.category}"
+                 data-search="${(r.case_id + ' ' + (r.description || '')).toLowerCase()}"
+                 onclick="toggleExpand(${i})">
+      <td><span class="dot ${dotCls}"></span></td>
+      <td><strong>${r.case_id}</strong></td>
+      <td>${r.category}</td>
+      <td>${(r.expected_tier_range || []).join('/')}</td>
+      <td><span class="badge badge-${tierColor}">${r.actual_tier || '-'}</span></td>
+      <td>${r.actual_score ? r.actual_score.toFixed(1) : '-'}</td>
+      <td>${r.duration_ms ? r.duration_ms + 'ms' : '-'}</td>
+      <td>${statusText}${r.is_false_positive ? ' 误报' : ''}${r.is_false_negative ? ' 漏报' : ''}${r.is_severe_miss ? ' ‼️严重' : ''}</td>
+    </tr>`;
+    html += `<tr><td colspan="8"><div class="expand-content" id="expand-${i}">
+      <p><strong>描述：</strong>${r.description || '-'}</p>
+      <p><strong>触发信号：</strong>${(r.actual_signals || []).join(', ') || '无'}</p>
+      <p><strong>预期信号：</strong>${(r.expected_signals || []).join(', ') || '无'}</p>
+      ${r.error ? `<p style="color:#f85149;"><strong>错误：</strong>${r.error}</p>` : ''}
+      ${r.scores ? `<p><strong>评分详情：</strong></p><pre>${JSON.stringify(r.scores, null, 2)}</pre>` : ''}
+    </div></td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  document.getElementById('tab-cases').innerHTML = html;
+}
+function toggleExpand(i) {
+  document.getElementById('expand-' + i).classList.toggle('show');
+}
+function filterCases() {
+  const search = document.getElementById('case-search').value.toLowerCase();
+  const status = document.getElementById('case-filter').value;
+  const cat = document.getElementById('cat-filter').value;
+  document.querySelectorAll('.case-row').forEach(row => {
+    const matchSearch = !search || row.dataset.search.includes(search);
+    const matchStatus = status === 'all' || row.dataset.status === status;
+    const matchCat = cat === 'all' || row.dataset.cat === cat;
+    const show = matchSearch && matchStatus && matchCat;
+    row.style.display = show ? '' : 'none';
+    row.nextElementSibling.style.display = show ? '' : 'none';
+  });
+}
+// === 数据集 Tab ===
+async function renderDataset() {
+  try {
+    const res = await fetch('/api/dataset');
+    const data = await res.json();
+    const byCategory = data.by_category || {};
+    let total = data.total || 0, withImage = 0;
+    const grouped = {};
+    for (const [cat, cases] of Object.entries(byCategory)) {
+      grouped[cat] = cases;
+      cases.forEach(c => { if (c.image_exists) withImage++; });
+    }
+    let html = '<h3 style="margin-bottom:16px;">测试用例库</h3>';
+    html += `<div class="cards">
+      <div class="card"><div class="label">总用例</div><div class="value">${total}</div></div>
+      <div class="card"><div class="label">有图片</div><div class="value green">${withImage}</div></div>
+      <div class="card"><div class="label">缺图片</div><div class="value ${total-withImage>0?'red':'green'}">${total - withImage}</div></div>
+    </div>`;
+    for (const [cat, cases] of Object.entries(grouped)) {
+      const missing = cases.filter(c => !c.image_exists).length;
+      html += `<div style="margin-bottom:16px;">`;
+      html += `<h4 style="margin-bottom:8px;">${cat} (${cases.length} 个${missing > 0 ? ', <span class="red">' + missing + ' 缺图片</span>' : ''})</h4>`;
+      html += '<table><thead><tr><th>ID</th><th>描述</th><th>预期 Tier</th><th>图片</th><th>盲区</th></tr></thead><tbody>';
+      cases.forEach(c => {
+        html += `<tr>
+          <td>${c.case_id}</td><td>${c.description || ''}</td>
+          <td>${(c.expected_tier_range || []).join('/')}</td>
+          <td>${c.image_exists ? '<span class="green">✅</span>' : '<span class="red">❌</span>'}</td>
+          <td>${c.is_known_blind_spot ? '⚠️' : '-'}</td>
+        </tr>`;
+      });
+      html += '</tbody></table></div>';
+    }
+    document.getElementById('tab-dataset').innerHTML = html;
+  } catch(e) {
+    document.getElementById('tab-dataset').innerHTML = '<div class="loading">加载数据集失败</div>';
+  }
+}
+// === 运行评测 ===
+function showRunDialog() {
+  document.getElementById('run-modal').classList.add('show');
+}
+function hideRunDialog() {
+  document.getElementById('run-modal').classList.remove('show');
+}
+async function startRun() {
+  const name = document.getElementById('run-name').value || 'unnamed';
+  const cats = [...document.querySelectorAll('.checkbox-group input:checked')].map(c => c.value);
+  const log = document.getElementById('run-log');
+  log.style.display = 'block';
+  log.innerHTML = '⏳ 正在启动评测...\n';
+  try {
+    const res = await fetch('/api/run', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({categories: cats, name: name})
+    });
+    const {run_id} = await res.json();
+    pollRunStatus(run_id);
+  } catch(e) {
+    log.innerHTML += '<span class="log-fail">启动失败: ' + e.message + '</span>\n';
+  }
+}
+async function pollRunStatus(runId) {
+  const log = document.getElementById('run-log');
+  const poll = setInterval(async () => {
+    try {
+      const res = await fetch('/api/run/' + runId + '/status');
+      const data = await res.json();
+      log.innerHTML = `⏳ 进度: ${data.completed}/${data.total} (${(data.progress*100).toFixed(0)}%)\n`;
+      log.innerHTML += `当前: ${data.current_case || '-'}\n\n`;
+      (data.results_so_far || []).forEach(r => {
+        const cls = r.error ? 'log-skip' : r.tier_match ? 'log-pass' : 'log-fail';
+        const icon = r.error ? '⏭️' : r.tier_match ? '✅' : '❌';
+        log.innerHTML += `<span class="${cls}">${icon} ${r.case_id}: ${r.actual_tier || 'ERR'} (预期 ${(r.expected_tier_range||[]).join('/')})</span>\n`;
+      });
+      log.scrollTop = log.scrollHeight;
+      if (data.status === 'completed') {
+        clearInterval(poll);
+        log.innerHTML += '\n✅ 评测完成！正在刷新...\n';
+        setTimeout(() => { hideRunDialog(); loadExperimentList(); loadExperiment('latest'); }, 1500);
+      }
+    } catch(e) {}
+  }, 2000);
+}
+// === 实验对比 Tab ===
+async function renderCompare() {
+  try {
+    const res = await fetch('/api/experiments');
+    const exps = await res.json();
+    if (exps.length < 2) {
+      document.getElementById('tab-compare').innerHTML =
+        '<div class="loading">需要至少 2 次实验才能对比。多运行几次评测后再来。</div>';
+      return;
+    }
+    let html = '<h3 style="margin-bottom:16px;">实验对比</h3>';
+    html += '<div class="filter-bar">';
+    html += '<select id="compare-a" class="btn">';
+    exps.forEach(e => html += `<option value="${e.experiment_id}">${(e.name || e.experiment_id).substring(0,25)}</option>`);
+    html += '</select><span style="color:#8b949e;">vs</span>';
+    html += '<select id="compare-b" class="btn">';
+    exps.forEach((e,i) => html += `<option value="${e.experiment_id}" ${i===1?'selected':''}>${(e.name || e.experiment_id).substring(0,25)}</option>`);
+    html += '</select>';
+    html += '<button class="btn btn-primary" onclick="runCompare()">对比</button></div>';
+    html += '<div id="compare-result"></div>';
+    document.getElementById('tab-compare').innerHTML = html;
+  } catch(e) {
+    document.getElementById('tab-compare').innerHTML = '<div class="loading">加载实验列表失败</div>';
+  }
+}
+async function runCompare() {
+  const a = document.getElementById('compare-a').value;
+  const b = document.getElementById('compare-b').value;
+  try {
+    const res = await fetch('/api/compare/' + a + '/' + b);
+    const data = await res.json();
+    const s1 = data.exp1_summary || {};
+    const s2 = data.exp2_summary || {};
+    const reg = data.regression || {};
+    let html = '<div class="compare-grid" style="margin-top:16px;">';
+    const fields = [
+      ['准确率', s1, s2, 'passed', 'total_cases', true],
+      ['误报率', s1, s2, 'false_positive_rate', null, false],
+      ['漏报率', s1, s2, 'false_negative_rate', null, false],
+      ['严重漏报', s1, s2, 'severe_miss_count', null, false],
+    ];
+    fields.forEach(([label, sa, sb, key, divKey, higherBetter]) => {
+      let va, vb;
+      if (divKey) { va = sa[divKey] ? sa[key]/sa[divKey] : 0; vb = sb[divKey] ? sb[key]/sb[divKey] : 0; }
+      else { va = sa[key] ?? 0; vb = sb[key] ?? 0; }
+      const isRate = key.includes('rate') || divKey;
+      const delta = vb - va;
+      const deltaStr = delta !== 0 ? (delta > 0 ? '+' : '') + (isRate ? (delta*100).toFixed(1)+'%' : delta.toFixed(2)) : '0';
+      const deltaCls = delta === 0 ? 'delta-same' :
+                       (higherBetter ? (delta > 0 ? 'delta-up' : 'delta-down') : (delta < 0 ? 'delta-up' : 'delta-down'));
+      const display = isRate ? (vb*100).toFixed(1)+'%' : vb;
+      html += `<div class="card"><div class="label">${label}</div>
+        <div class="value">${display}<span class="delta ${deltaCls}">${deltaStr}</span></div></div>`;
+    });
+    html += '</div>';
+    // Regression items
+    const items = reg.items || [];
+    const regressions = items.filter(i => i.change_type === 'regressed' || i.change_type === 'new_failure');
+    const improvements = items.filter(i => i.change_type === 'improved' || i.change_type === 'fixed');
+    if (regressions.length > 0) {
+      html += '<h4 style="margin:16px 0 8px;color:#f85149;">⚠️ 回归 (' + regressions.length + ')</h4><ul style="padding-left:20px;">';
+      regressions.forEach(r => html += `<li style="color:#f85149;">${r.case_id}: ${r.baseline_tier} → ${r.current_tier} — ${r.detail}</li>`);
+      html += '</ul>';
+    }
+    if (improvements.length > 0) {
+      html += '<h4 style="margin:16px 0 8px;color:#3fb950;">✅ 改善 (' + improvements.length + ')</h4><ul style="padding-left:20px;">';
+      improvements.forEach(r => html += `<li style="color:#3fb950;">${r.case_id}: ${r.baseline_tier} → ${r.current_tier} — ${r.detail}</li>`);
+      html += '</ul>';
+    }
+    if (regressions.length === 0 && improvements.length === 0) {
+      html += '<p style="margin-top:16px;color:#8b949e;">两次实验结果完全相同。</p>';
+    }
+    // Score delta
+    const sd = data.score_delta || {};
+    if (Object.keys(sd).length > 0) {
+      html += '<h4 style="margin:16px 0 8px;">评分维度变化</h4><table><thead><tr><th>维度</th><th>变化</th></tr></thead><tbody>';
+      for (const [dim, d] of Object.entries(sd)) {
+        const cls = d > 0 ? 'delta-up' : d < 0 ? 'delta-down' : 'delta-same';
+        html += `<tr><td>${dim}</td><td><span class="${cls}">${d > 0 ? '+' : ''}${(d*100).toFixed(1)}%</span></td></tr>`;
+      }
+      html += '</tbody></table>';
+    }
+    document.getElementById('compare-result').innerHTML = html;
+  } catch(e) {
+    document.getElementById('compare-result').innerHTML = '<div class="loading">对比失败: ' + e.message + '</div>';
+  }
+}
+loadExperimentList();
+loadExperiment('latest');
+renderDataset();
+renderCompare();
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+[
+  {
+    "case_id": "AIGEN_001",
+    "category": "ai_generated",
+    "image_path": "test_receipts/ai_generated/dalle_receipt1.png",
+    "description": "DALL-E 生成的中文餐厅收据",
+    "expected_tier": "T2",
+    "expected_tier_range": ["T2", "T3"],
+    "expected_signals": ["VISUAL_001", "META_004"],
+    "is_known_blind_spot": false,
+    "notes": "视觉异常是弱信号，元数据缺失是中等信号。不应硬拦截。"
+  }
+]

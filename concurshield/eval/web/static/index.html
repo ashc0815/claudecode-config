@@ -346,21 +346,23 @@ async function renderDataset() {
       <div class="card"><div class="label">有图片</div><div class="value green">${withImage}</div></div>
       <div class="card"><div class="label">缺图片</div><div class="value ${total-withImage>0?'red':'green'}">${total - withImage}</div></div>
     </div>`;
+    html += '<div class="table-wrap"><table style="table-layout:fixed;"><colgroup>';
+    html += '<col style="width:150px"><col style="width:auto"><col style="width:100px"><col style="width:70px"><col style="width:70px">';
+    html += '</colgroup><thead><tr><th>ID</th><th>描述</th><th>预期 Tier</th><th>图片</th><th>盲区</th></tr></thead><tbody>';
     for (const [cat, cases] of Object.entries(grouped)) {
       const missing = cases.filter(c => !c.image_exists).length;
-      html += `<div style="margin-bottom:16px;">`;
-      html += `<h4 style="margin-bottom:8px;">${cat} (${cases.length} 个${missing > 0 ? ', <span class="red">' + missing + ' 缺图片</span>' : ''})</h4>`;
-      html += '<table><thead><tr><th>ID</th><th>描述</th><th>预期 Tier</th><th>图片</th><th>盲区</th></tr></thead><tbody>';
+      html += `<tr><td colspan="5" style="background:#161b22;padding:12px 14px;font-weight:700;font-size:14px;border-top:2px solid #30363d;">`;
+      html += `${cat} (${cases.length} 个${missing > 0 ? ', <span class="red">' + missing + ' 缺图片</span>' : ''})</td></tr>`;
       cases.forEach(c => {
         html += `<tr>
-          <td>${c.case_id}</td><td>${c.description || ''}</td>
+          <td>${c.case_id}</td><td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.description || ''}</td>
           <td>${(c.expected_tier_range || []).join('/')}</td>
-          <td>${c.image_exists ? '<span class="green">✅</span>' : '<span class="red">❌</span>'}</td>
-          <td>${c.is_known_blind_spot ? '⚠️' : '-'}</td>
+          <td style="text-align:center;">${c.image_exists ? '<span class="green">✅</span>' : '<span class="red">❌</span>'}</td>
+          <td style="text-align:center;">${c.is_known_blind_spot ? '⚠️' : '-'}</td>
         </tr>`;
       });
-      html += '</tbody></table></div>';
     }
+    html += '</tbody></table></div>';
     document.getElementById('tab-dataset').innerHTML = html;
   } catch(e) {
     document.getElementById('tab-dataset').innerHTML = '<div class="loading">加载数据集失败</div>';

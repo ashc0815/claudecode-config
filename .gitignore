@@ -24,3 +24,4 @@ plugins/
 # 同步：skills + memory
 !skills/
 !projects/-Users-ashleychen/memory/
+.eval_history/

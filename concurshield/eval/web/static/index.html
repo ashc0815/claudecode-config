@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>ConcurShield Eval Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, sans-serif; }
+    .nav { background: #161b22; padding: 16px 24px; border-bottom: 1px solid #30363d;
+           display: flex; align-items: center; justify-content: space-between; }
+    .nav h1 { font-size: 18px; font-weight: 600; }
+    .tabs { display: flex; gap: 0; background: #161b22; border-bottom: 1px solid #30363d; padding: 0 24px; }
+    .tab { padding: 12px 20px; cursor: pointer; border-bottom: 2px solid transparent; color: #8b949e; }
+    .tab.active { color: #c9d1d9; border-bottom-color: #f78166; }
+    .tab:hover { color: #c9d1d9; }
+    .content { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; }
+    .card .label { font-size: 12px; color: #8b949e; text-transform: uppercase; margin-bottom: 8px; }
+    .card .value { font-size: 28px; font-weight: 700; }
+    .card .sub { font-size: 13px; color: #8b949e; margin-top: 4px; }
+    .progress-bar { height: 6px; background: #21262d; border-radius: 3px; overflow: hidden; margin-top: 8px; }
+    .progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+    .green { color: #3fb950; } .red { color: #f85149; } .yellow { color: #d29922; } .orange { color: #f0883e; }
+    .fill-green { background: #238636; } .fill-red { background: #da3633; } .fill-yellow { background: #9e6a03; }
+    .btn { padding: 8px 16px; border-radius: 6px; border: 1px solid #30363d;
+           background: #21262d; color: #c9d1d9; cursor: pointer; font-size: 14px; }
+    .btn:hover { background: #30363d; }
+    .btn-primary { background: #238636; border-color: #238636; color: #fff; }
+    .btn-primary:hover { background: #2ea043; }
+    .loading { text-align: center; padding: 40px; color: #8b949e; }
+  </style>
+</head>
+<body>
+<nav class="nav">
+  <h1>🛡️ ConcurShield Eval Dashboard</h1>
+  <div>
+    <select id="experiment-select" class="btn" onchange="loadExperiment(this.value)">
+      <option value="latest">最新结果</option>
+    </select>
+    <button class="btn btn-primary" onclick="showRunDialog()">▶ 运行评测</button>
+  </div>
+</nav>
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('overview')">总览</div>
+  <div class="tab" onclick="switchTab('scores')">评分</div>
+  <div class="tab" onclick="switchTab('matrix')">混淆矩阵</div>
+  <div class="tab" onclick="switchTab('cases')">用例详情</div>
+  <div class="tab" onclick="switchTab('dataset')">数据集</div>
+  <div class="tab" onclick="switchTab('compare')">对比</div>
+</div>
+<div class="content">
+  <div id="tab-overview" class="tab-content active">
+    <div class="cards" id="overview-cards"><div class="loading">加载中...</div></div>
+    <div id="category-accuracy"></div>
+  </div>
+  <div id="tab-scores" class="tab-content"><div class="loading">评分详情（Prompt 3 实现）</div></div>
+  <div id="tab-matrix" class="tab-content"><div class="loading">混淆矩阵（Prompt 3 实现）</div></div>
+  <div id="tab-cases" class="tab-content"><div class="loading">用例详情（Prompt 4 实现）</div></div>
+  <div id="tab-dataset" class="tab-content"><div class="loading">数据集管理（Prompt 4 实现）</div></div>
+  <div id="tab-compare" class="tab-content"><div class="loading">实验对比（Prompt 5 实现）</div></div>
+</div>
+<script>
+const TAB_NAMES = {overview:'总览',scores:'评分',matrix:'混淆矩阵',cases:'用例详情',dataset:'数据集',compare:'对比'};
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.textContent.trim() === TAB_NAMES[name]));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+}
+let currentData = null;
+async function loadExperiment(id) {
+  const url = id === 'latest' ? '/api/latest' : '/api/experiment/' + id;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) { renderEmpty(); return; }
+    currentData = await res.json();
+    renderOverview(currentData);
+  } catch(e) { renderEmpty(); }
+}
+async function loadExperimentList() {
+  try {
+    const res = await fetch('/api/experiments');
+    const list = await res.json();
+    const sel = document.getElementById('experiment-select');
+    list.forEach(exp => {
+      const opt = document.createElement('option');
+      opt.value = exp.experiment_id;
+      opt.textContent = (exp.name || exp.experiment_id).substring(0, 30) + ' (' + (exp.created_at || '').substring(0, 10) + ')';
+      sel.appendChild(opt);
+    });
+  } catch(e) {}
+}
+function renderOverview(data) {
+  const s = data.summary || data;
+  const total = s.total_cases || 0, passed = s.passed || 0, failed = s.failed || 0, errors = s.errors || 0;
+  const fp = s.false_positive_rate || 0, fn = s.false_negative_rate || 0, severe = s.severe_miss_count || 0;
+  const pct = total > 0 ? (passed / total * 100).toFixed(1) : '0';
+  document.getElementById('overview-cards').innerHTML = `
+    <div class="card"><div class="label">准确率</div>
+      <div class="value ${pct >= 80 ? 'green' : pct >= 50 ? 'yellow' : 'red'}">${pct}%</div>
+      <div class="sub">${passed} / ${total} 通过</div>
+      <div class="progress-bar"><div class="progress-fill fill-green" style="width:${pct}%"></div></div></div>
+    <div class="card"><div class="label">失败</div>
+      <div class="value ${failed > 0 ? 'red' : 'green'}">${failed}</div><div class="sub">Tier 不匹配</div></div>
+    <div class="card"><div class="label">误报率</div>
+      <div class="value ${fp > 0.05 ? 'red' : fp > 0 ? 'yellow' : 'green'}">${(fp * 100).toFixed(1)}%</div>
+      <div class="sub">正常收据被误判</div></div>
+    <div class="card"><div class="label">漏报率</div>
+      <div class="value ${fn > 0.1 ? 'red' : fn > 0 ? 'yellow' : 'green'}">${(fn * 100).toFixed(1)}%</div>
+      <div class="sub">异常收据被放过</div></div>
+    <div class="card"><div class="label">严重漏报</div>
+      <div class="value ${severe > 0 ? 'red' : 'green'}">${severe}</div><div class="sub">T4 被判为 T1-T2</div></div>
+    <div class="card"><div class="label">运行错误</div>
+      <div class="value ${errors > 0 ? 'orange' : 'green'}">${errors}</div><div class="sub">图片缺失或 API 错误</div></div>`;
+  const acc = s.accuracy_by_category || {};
+  let h = '<h3 style="margin:24px 0 12px;font-size:16px;">按类别准确率</h3>';
+  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;">';
+  for (const [cat, info] of Object.entries(acc)) {
+    const a = (info.accuracy * 100).toFixed(0);
+    const c = a >= 80 ? 'green' : a >= 50 ? 'yellow' : 'red';
+    h += `<div class="card"><div class="label">${cat}</div><div class="value ${c}">${a}%</div>
+      <div class="sub">${info.passed}/${info.total} 通过</div>
+      <div class="progress-bar"><div class="progress-fill fill-${c}" style="width:${a}%"></div></div></div>`;
+  }
+  document.getElementById('category-accuracy').innerHTML = h + '</div>';
+}
+function renderEmpty() {
+  document.getElementById('overview-cards').innerHTML = '<div class="loading">暂无评测结果。点击右上角"运行评测"开始。</div>';
+  document.getElementById('category-accuracy').innerHTML = '';
+}
+function showRunDialog() { alert('请使用命令行运行评测：python -m eval.run_eval --baseline'); }
+loadExperimentList();
+loadExperiment('latest');
+</script>
+</body>
+</html>

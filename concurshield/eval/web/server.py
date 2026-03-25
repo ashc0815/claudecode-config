@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -47,6 +47,12 @@ app = FastAPI(title="ConcurShield Eval Dashboard", version="1.0.0")
 _STATIC_DIR = Path(__file__).parent / "static"
 _STATIC_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+
+@app.get("/")
+async def root():
+    """根路由重定向到仪表盘首页。"""
+    return RedirectResponse(url="/static/index.html")
 
 
 # ---------------------------------------------------------------------------

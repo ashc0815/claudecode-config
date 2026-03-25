@@ -22,7 +22,7 @@ from .models import (
 from .dataset import Dataset
 from .runner import EvalRunner
 from .metrics import compute_metrics
-from .report import generate_markdown_report, generate_json_report
+from .report import generate_markdown_report, generate_json_report, generate_html_report
 from .experiment import ExperimentStore, compare_experiments
 from .slicing import SliceAnalyzer, BUILTIN_SLICES
 
@@ -52,4 +52,5 @@ __all__ = [
     # 报告
     "generate_markdown_report",
     "generate_json_report",
+    "generate_html_report",
 ]

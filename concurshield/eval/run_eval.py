@@ -20,7 +20,7 @@ from pathlib import Path
 
 from eval.runner import EvalRunner
 from eval.metrics import compute_metrics
-from eval.report import generate_markdown_report, generate_json_report
+from eval.report import generate_markdown_report, generate_json_report, generate_html_report
 from eval.experiment import ExperimentStore
 from eval.slicing import SliceAnalyzer
 
@@ -143,6 +143,12 @@ async def main() -> None:
         slice_metrics=slice_metrics,
         regression=regression,
     )
+    html_report = generate_html_report(
+        summary, results,
+        experiment=experiment,
+        slice_metrics=slice_metrics,
+        regression=regression,
+    )
 
     # 6. 保存文件
     out_dir = Path(args.output)
@@ -152,6 +158,7 @@ async def main() -> None:
     (out_dir / "report.json").write_text(
         json.dumps(json_report, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+    (out_dir / "report.html").write_text(html_report, encoding="utf-8")
 
     # 7. 打印摘要
     pass_rate = f"{summary.passed / summary.total_cases * 100:.1f}%" if summary.total_cases else "N/A"
@@ -172,8 +179,9 @@ async def main() -> None:
         print(f"\n⚠️  检测到 {regression.regressed} 个回归!")
 
     print(f"{'=' * 50}")
-    print(f"报告: {out_dir.resolve()}/report.md")
-    print(f"实验历史: .eval_history/")
+    print(f"HTML 报告: {out_dir.resolve()}/report.html")
+    print(f"Markdown:   {out_dir.resolve()}/report.md")
+    print(f"实验历史:   .eval_history/")
 
 
 if __name__ == "__main__":

@@ -95,6 +95,8 @@
     .run-log .log-pass { color: #3fb950; }
     .run-log .log-fail { color: #f85149; }
     .run-log .log-skip { color: #484f58; }
+    /* Checkbox */
+    .case-check, #select-all-cases { width: 16px; height: 16px; cursor: pointer; accent-color: #238636; }
   </style>
 </head>
 <body>
@@ -279,8 +281,12 @@ function renderCases(data) {
   html += '<option value="all">全部类别</option>';
   const cats = [...new Set(results.map(r => r.category))];
   cats.forEach(c => html += `<option value="${c}">${c}</option>`);
-  html += '</select></div>';
+  html += '</select>';
+  html += '<button class="btn" onclick="selectFailedCases()" style="margin-left:auto;">☑ 选中失败</button>';
+  html += '<button class="btn btn-primary" onclick="retestSelected()">🔄 重测选中</button>';
+  html += '</div>';
   html += '<div class="table-wrap"><table><thead><tr>';
+  html += '<th style="width:36px;"><input type="checkbox" id="select-all-cases" onchange="toggleAllCases(this.checked)"></th>';
   html += '<th></th><th>ID</th><th>类别</th><th>预期</th><th>实际</th><th>分数</th><th>耗时</th><th>状态</th>';
   html += '</tr></thead><tbody id="cases-tbody">';
   results.forEach((r, i) => {
@@ -289,9 +295,10 @@ function renderCases(data) {
     const statusText = status === 'pass' ? '✅' : status === 'fail' ? '❌' : '⚠️';
     const tierColor = r.actual_tier === 'T1' ? 'green' : r.actual_tier === 'T2' ? 'yellow' :
                       r.actual_tier === 'T3' ? 'orange' : 'red';
-    html += `<tr class="expandable case-row" data-status="${status}" data-cat="${r.category}"
+    html += `<tr class="expandable case-row" data-status="${status}" data-cat="${r.category}" data-caseid="${r.case_id}"
                  data-search="${(r.case_id + ' ' + (r.description || '')).toLowerCase()}"
                  onclick="toggleExpand(${i})">
+      <td onclick="event.stopPropagation()"><input type="checkbox" class="case-check" value="${r.case_id}"></td>
       <td><span class="dot ${dotCls}"></span></td>
       <td><strong>${r.case_id}</strong></td>
       <td>${r.category}</td>
@@ -301,7 +308,7 @@ function renderCases(data) {
       <td>${r.duration_ms ? r.duration_ms + 'ms' : '-'}</td>
       <td>${statusText}${r.is_false_positive ? ' 误报' : ''}${r.is_false_negative ? ' 漏报' : ''}${r.is_severe_miss ? ' ‼️严重' : ''}</td>
     </tr>`;
-    html += `<tr><td colspan="8"><div class="expand-content" id="expand-${i}">
+    html += `<tr><td colspan="9"><div class="expand-content" id="expand-${i}">
       <p><strong>描述：</strong>${r.description || '-'}</p>
       <p><strong>触发信号：</strong>${(r.actual_signals || []).join(', ') || '无'}</p>
       <p><strong>预期信号：</strong>${(r.expected_signals || []).join(', ') || '无'}</p>
@@ -366,6 +373,46 @@ async function renderDataset() {
     document.getElementById('tab-dataset').innerHTML = html;
   } catch(e) {
     document.getElementById('tab-dataset').innerHTML = '<div class="loading">加载数据集失败</div>';
+  }
+}
+// === 批量选择与重测 ===
+function toggleAllCases(checked) {
+  document.querySelectorAll('.case-check').forEach(cb => {
+    const row = cb.closest('tr');
+    if (row.style.display !== 'none') cb.checked = checked;
+  });
+}
+function selectFailedCases() {
+  document.querySelectorAll('.case-check').forEach(cb => cb.checked = false);
+  document.querySelectorAll('.case-row').forEach(row => {
+    if (row.dataset.status === 'fail' || row.dataset.status === 'error') {
+      const cb = row.querySelector('.case-check');
+      if (cb && row.style.display !== 'none') cb.checked = true;
+    }
+  });
+}
+function getSelectedCaseIds() {
+  return [...document.querySelectorAll('.case-check:checked')].map(cb => cb.value);
+}
+async function retestSelected() {
+  const ids = getSelectedCaseIds();
+  if (ids.length === 0) { alert('请先勾选要重测的用例'); return; }
+  if (!confirm(`确认重新测试 ${ids.length} 个用例？\n${ids.join(', ')}`)) return;
+  const log = document.getElementById('run-log');
+  document.getElementById('run-modal').classList.add('show');
+  document.getElementById('run-name').value = '重测 ' + ids.length + ' 个用例';
+  log.style.display = 'block';
+  log.innerHTML = `⏳ 正在启动重测 ${ids.length} 个用例...\n`;
+  try {
+    const res = await fetch('/api/run', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({case_ids: ids, name: '重测 ' + ids.length + ' 个用例'})
+    });
+    const {run_id} = await res.json();
+    pollRunStatus(run_id);
+  } catch(e) {
+    log.innerHTML += '<span class="log-fail">启动失败: ' + e.message + '</span>\n';
   }
 }
 // === 运行评测 ===

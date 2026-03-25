@@ -75,6 +75,7 @@ _runs: Dict[str, Dict[str, Any]] = {}
 class RunRequest(BaseModel):
     categories: Optional[List[str]] = None
     name: str = ""
+    case_ids: Optional[List[str]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +166,7 @@ async def start_run(req: RunRequest):
 
     thread = threading.Thread(
         target=_run_eval_in_thread,
-        args=(run_id, req.categories, req.name),
+        args=(run_id, req.categories, req.name, req.case_ids),
         daemon=True,
     )
     thread.start()
@@ -177,12 +178,13 @@ def _run_eval_in_thread(
     run_id: str,
     categories: Optional[List[str]],
     name: str,
+    case_ids: Optional[List[str]] = None,
 ) -> None:
     """在独立线程中运行评测，逐用例更新 _runs 状态。"""
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        loop.run_until_complete(_run_eval_async(run_id, categories, name))
+        loop.run_until_complete(_run_eval_async(run_id, categories, name, case_ids))
     except Exception as exc:
         _runs[run_id]["status"] = "error"
         _runs[run_id]["error"] = f"{type(exc).__name__}: {exc}"
@@ -194,10 +196,15 @@ async def _run_eval_async(
     run_id: str,
     categories: Optional[List[str]],
     name: str,
+    case_ids: Optional[List[str]] = None,
 ) -> None:
     """执行评测的 async 核心逻辑。"""
     runner = EvalRunner(categories=categories, experiment_name=name)
     ordered = runner._order_test_cases(runner.test_cases)
+    # 如果指定了 case_ids，只跑这些用例
+    if case_ids:
+        id_set = set(case_ids)
+        ordered = [tc for tc in ordered if tc.case_id in id_set]
     total = len(ordered)
 
     state = _runs[run_id]

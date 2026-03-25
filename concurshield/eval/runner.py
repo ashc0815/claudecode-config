@@ -1,4 +1,10 @@
-"""批量运行器 — 运行评测用例并收集结果。"""
+"""批量运行器 — 运行评测用例、调用评估器、生成实验记录。
+
+重构后架构：
+- Runner 调用 pipeline → 提取输出
+- 将输出传给 Evaluator 列表 → 获得多维 Score
+- 所有结果包装成 Experiment
+"""
 
 from __future__ import annotations
 
@@ -8,7 +14,17 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
-from eval.models import TestCase, EvalResult, load_all_test_cases
+from eval.models import (
+    TestCase,
+    EvalResult,
+    Score,
+    DatasetMeta,
+    Experiment,
+    load_all_test_cases,
+)
+from eval.dataset import Dataset
+from eval.evaluators import DEFAULT_EVALUATORS
+from eval.evaluators.base import Evaluator
 
 # pipeline 尚未实现时优雅降级
 try:
@@ -18,20 +34,30 @@ except ImportError:
 
 
 class EvalRunner:
-    """评测运行器。"""
+    """评测运行器 — 增强版。"""
 
     # 类别运行顺序：normal 先跑（建立哈希库），duplicates 其次，其他随后
     _CATEGORY_ORDER = ["normal", "duplicates"]
 
-    def __init__(self, categories: Optional[List[str]] = None):
-        self.test_cases = load_all_test_cases(categories)
+    def __init__(
+        self,
+        categories: Optional[List[str]] = None,
+        evaluators: Optional[List[Evaluator]] = None,
+        experiment_name: str = "",
+        config: dict | None = None,
+    ):
+        self.dataset = Dataset.load(categories)
+        self.test_cases = self.dataset.cases
+        self.evaluators = evaluators or list(DEFAULT_EVALUATORS)
+        self.experiment_name = experiment_name
+        self.config = config or {}
 
     # ------------------------------------------------------------------
     # 单个用例
     # ------------------------------------------------------------------
 
     async def run_single(self, test_case: TestCase) -> EvalResult:
-        """运行单个测试用例并返回 EvalResult。"""
+        """运行单个测试用例并返回 EvalResult（含多维评分）。"""
         result = EvalResult(
             case_id=test_case.case_id,
             category=test_case.category,
@@ -75,22 +101,25 @@ class EvalRunner:
         actual_set = set(actual_signals)
         signals_match = expected_set.issubset(actual_set) if expected_set else True
 
-        # 6. 误报: normal 被判为非 T1
+        # 6. 误报 / 漏报 / 严重漏报
         is_false_positive = (
             test_case.category == "normal" and actual_tier != "T1"
         )
-
-        # 7. 漏报: 非 normal、非盲区被判为 T1
         is_false_negative = (
             test_case.category != "normal"
             and actual_tier == "T1"
             and not test_case.is_known_blind_spot
         )
-
-        # 8. 严重漏报: 期望含 T4 但实际仅 T1/T2
         is_severe_miss = (
             "T4" in test_case.expected_tier_range
             and actual_tier in ("T1", "T2")
+        )
+
+        # 7. 序列化完整报告
+        full_report = (
+            report.model_dump() if hasattr(report, "model_dump") else
+            report.dict() if hasattr(report, "dict") else
+            {"raw": str(report)}
         )
 
         # 组装结果
@@ -104,10 +133,12 @@ class EvalRunner:
         result.is_severe_miss = is_severe_miss
         result.api_calls = api_calls
         result.duration_ms = elapsed_ms
-        result.full_report = (
-            report.model_dump() if hasattr(report, "model_dump") else
-            report.dict() if hasattr(report, "dict") else
-            {"raw": str(report)}
+        result.full_report = full_report
+
+        # 8. 运行所有评估器 → 多维评分
+        result.scores = self._run_evaluators(
+            test_case, actual_tier, actual_score,
+            actual_signals, elapsed_ms, api_calls, full_report,
         )
 
         return result
@@ -129,6 +160,26 @@ class EvalRunner:
 
         return results
 
+    async def run_experiment(self) -> Experiment:
+        """运行完整评测，返回 Experiment 对象。"""
+        from eval.metrics import compute_metrics
+
+        results = await self.run_all()
+        summary = compute_metrics(results)
+
+        exp = Experiment(
+            name=self.experiment_name,
+            dataset=self.dataset.meta,
+            config=self.config,
+            summary=summary,
+            results=results,
+        )
+        # 填充 git commit
+        from eval.experiment import ExperimentStore
+        exp.git_commit = ExperimentStore._get_git_commit()
+
+        return exp
+
     # ------------------------------------------------------------------
     # 持久化
     # ------------------------------------------------------------------
@@ -142,13 +193,11 @@ class EvalRunner:
         per_case_dir = out / "per_case"
         per_case_dir.mkdir(exist_ok=True)
 
-        # results.json — 全部
         all_data = [r.model_dump() for r in results]
         (out / "results.json").write_text(
             json.dumps(all_data, ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
-        # per_case/<case_id>.json
         for r in results:
             fp = per_case_dir / f"{r.case_id}.json"
             fp.write_text(
@@ -162,6 +211,39 @@ class EvalRunner:
     # 内部辅助
     # ------------------------------------------------------------------
 
+    def _run_evaluators(
+        self,
+        test_case: TestCase,
+        actual_tier: str,
+        actual_score: float,
+        actual_signals: list[str],
+        duration_ms: int,
+        api_calls: int,
+        full_report: dict | None,
+    ) -> List[Score]:
+        """运行所有评估器。"""
+        scores = []
+        for evaluator in self.evaluators:
+            try:
+                score = evaluator.evaluate(
+                    test_case=test_case,
+                    actual_tier=actual_tier,
+                    actual_score=actual_score,
+                    actual_signals=actual_signals,
+                    duration_ms=duration_ms,
+                    api_calls=api_calls,
+                    full_report=full_report,
+                )
+                scores.append(score)
+            except Exception as exc:
+                scores.append(Score(
+                    name=evaluator.name,
+                    score=-1.0,
+                    label="error",
+                    reason=f"{type(exc).__name__}: {exc}",
+                ))
+        return scores
+
     @classmethod
     def _order_test_cases(cls, cases: List[TestCase]) -> List[TestCase]:
         """按类别顺序排序: normal → duplicates → 其他。"""
@@ -170,10 +252,8 @@ class EvalRunner:
             buckets.setdefault(tc.category, []).append(tc)
 
         ordered: List[TestCase] = []
-        # 先按优先类别
         for cat in cls._CATEGORY_ORDER:
             ordered.extend(buckets.pop(cat, []))
-        # 其余按字母序
         for cat in sorted(buckets):
             ordered.extend(buckets[cat])
         return ordered
@@ -198,8 +278,19 @@ class EvalRunner:
         else:
             status = "❌"
 
+        # 附加评分摘要
+        score_summary = ""
+        if result.scores:
+            parts = [
+                f"{s.name}={s.score:.1f}"
+                for s in result.scores
+                if s.score >= 0
+            ]
+            if parts:
+                score_summary = f" [{', '.join(parts)}]"
+
         print(
             f"[{idx}/{total}] {tc.case_id}: "
             f"{result.actual_tier or 'N/A'} "
-            f"(expected {expected_range}) {status}"
+            f"(expected {expected_range}) {status}{score_summary}"
         )

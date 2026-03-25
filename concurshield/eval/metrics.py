@@ -1,8 +1,11 @@
-"""指标计算器 — 从评测结果计算汇总指标。"""
+"""指标计算器 — 从评测结果计算汇总指标。
+
+增强版：新增多维评分汇总（score_summary）。
+"""
 
 from __future__ import annotations
 
-from typing import List
+from typing import Dict, List
 
 from eval.models import EvalResult, EvalSummary
 
@@ -42,7 +45,7 @@ def compute_metrics(results: List[EvalResult]) -> EvalSummary:
         }
 
     # ------------------------------------------------------------------
-    # 3. 误报率: normal 中 actual_tier != "T1" 的比例
+    # 3. 误报率
     # ------------------------------------------------------------------
     normal_cases = [r for r in results if r.category == "normal" and r.error is None]
     false_positives = sum(1 for r in normal_cases if r.actual_tier != "T1")
@@ -51,7 +54,7 @@ def compute_metrics(results: List[EvalResult]) -> EvalSummary:
     )
 
     # ------------------------------------------------------------------
-    # 4. 漏报率: 非 normal、非盲区中 actual_tier == "T1" 的比例
+    # 4. 漏报率
     # ------------------------------------------------------------------
     non_normal = [
         r for r in results
@@ -70,7 +73,7 @@ def compute_metrics(results: List[EvalResult]) -> EvalSummary:
     severe_miss_count = sum(1 for r in results if r.is_severe_miss)
 
     # ------------------------------------------------------------------
-    # 6. 混淆矩阵 4×4 (expected_tier_range[0] vs actual_tier)
+    # 6. 混淆矩阵
     # ------------------------------------------------------------------
     confusion_matrix = _build_confusion_matrix(results)
 
@@ -98,6 +101,11 @@ def compute_metrics(results: List[EvalResult]) -> EvalSummary:
         if _is_known_blind_spot(r)
     ]
 
+    # ------------------------------------------------------------------
+    # 9. 多维评分汇总（新增）
+    # ------------------------------------------------------------------
+    score_summary = _compute_score_summary(results)
+
     return EvalSummary(
         total_cases=total,
         passed=passed,
@@ -112,6 +120,7 @@ def compute_metrics(results: List[EvalResult]) -> EvalSummary:
         total_duration_ms=total_duration_ms,
         avg_duration_ms=avg_duration_ms,
         known_blind_spot_results=known_blind_spot_results,
+        score_summary=score_summary,
     )
 
 
@@ -121,24 +130,16 @@ def compute_metrics(results: List[EvalResult]) -> EvalSummary:
 
 
 def _is_known_blind_spot(result: EvalResult) -> bool:
-    """判断是否为已知盲区（通过 full_report 中保存的原始 TestCase 信息或 is_false_negative 逻辑推断）。"""
-    # EvalResult 本身未保存 is_known_blind_spot，需从 full_report 或标记推断
-    # 如果 is_false_negative 为 False 且 category != "normal" 且 actual_tier == "T1"，
-    # 说明该用例是 known blind spot（runner 中的逻辑）
+    """判断是否为已知盲区。"""
     if result.category != "normal" and result.actual_tier == "T1" and not result.is_false_negative:
         return True
-    # 也检查 full_report 中是否保存了该标记
     if result.full_report and result.full_report.get("is_known_blind_spot"):
         return True
     return False
 
 
 def _build_confusion_matrix(results: List[EvalResult]) -> dict:
-    """构建 4×4 混淆矩阵: expected (行) vs actual (列)。
-
-    expected 取 expected_tier_range[0] 作为主要预期等级。
-    仅统计无错误的结果。
-    """
+    """构建 4x4 混淆矩阵。"""
     matrix: dict[str, dict[str, int]] = {
         t: {t2: 0 for t2 in _TIERS} for t in _TIERS
     }
@@ -152,3 +153,38 @@ def _build_confusion_matrix(results: List[EvalResult]) -> dict:
             matrix[expected][actual] += 1
 
     return matrix
+
+
+def _compute_score_summary(
+    results: List[EvalResult],
+) -> Dict[str, Dict[str, float]]:
+    """计算各评分维度的 mean / min / max / pass_rate。"""
+    if not results:
+        return {}
+
+    # 收集所有评分维度名
+    score_names: set[str] = set()
+    for r in results:
+        for s in r.scores:
+            if s.score >= 0:  # -1 表示 disabled
+                score_names.add(s.name)
+
+    summary: Dict[str, Dict[str, float]] = {}
+    for name in sorted(score_names):
+        vals = [
+            s.score for r in results
+            for s in r.scores
+            if s.name == name and s.score >= 0
+        ]
+        if not vals:
+            continue
+        pass_count = sum(1 for v in vals if v >= 1.0)
+        summary[name] = {
+            "mean": round(sum(vals) / len(vals), 4),
+            "min": round(min(vals), 4),
+            "max": round(max(vals), 4),
+            "pass_rate": round(pass_count / len(vals), 4),
+            "count": len(vals),
+        }
+
+    return summary

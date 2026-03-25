@@ -70,6 +70,31 @@
     .dot-red { background: #f85149; }
     .dot-gray { background: #484f58; }
     .dot-orange { background: #f0883e; }
+    /* 对比 */
+    .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .delta { font-size: 13px; margin-left: 8px; }
+    .delta-up { color: #3fb950; }
+    .delta-down { color: #f85149; }
+    .delta-same { color: #8b949e; }
+    /* 弹窗 */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                      background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: #161b22; border: 1px solid #30363d; border-radius: 12px;
+              padding: 24px; width: 480px; max-width: 90vw; }
+    .modal h3 { margin-bottom: 16px; }
+    .modal label { display: block; margin-bottom: 12px; font-size: 14px; color: #8b949e; }
+    .modal input[type=text] { width: 100%; padding: 8px 12px; background: #0d1117;
+                               border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; margin-top: 4px; }
+    .modal .checkbox-group { margin-bottom: 12px; }
+    .modal .checkbox-group label { display: inline-flex; align-items: center; gap: 6px;
+                                    margin-right: 12px; cursor: pointer; color: #c9d1d9; }
+    /* 实时进度 */
+    .run-log { max-height: 300px; overflow-y: auto; font-size: 13px; font-family: monospace;
+                background: #0d1117; padding: 12px; border-radius: 6px; margin-top: 12px; }
+    .run-log .log-pass { color: #3fb950; }
+    .run-log .log-fail { color: #f85149; }
+    .run-log .log-skip { color: #484f58; }
   </style>
 </head>
 <body>
@@ -100,6 +125,27 @@
   <div id="tab-cases" class="tab-content"><div class="loading">用例详情（Prompt 4 实现）</div></div>
   <div id="tab-dataset" class="tab-content"><div class="loading">数据集管理（Prompt 4 实现）</div></div>
   <div id="tab-compare" class="tab-content"><div class="loading">实验对比（Prompt 5 实现）</div></div>
+</div>
+<!-- 运行弹窗 -->
+<div class="modal-overlay" id="run-modal">
+  <div class="modal">
+    <h3>▶ 运行评测</h3>
+    <label>实验名称：<input type="text" id="run-name" placeholder="如：v1.1 修复信号检测"></label>
+    <div class="checkbox-group">
+      <label><input type="checkbox" value="normal" checked> normal</label>
+      <label><input type="checkbox" value="tampered" checked> tampered</label>
+      <label><input type="checkbox" value="ai_generated" checked> ai_generated</label>
+      <label><input type="checkbox" value="prompt_injection" checked> prompt_injection</label>
+      <label><input type="checkbox" value="duplicates" checked> duplicates</label>
+      <label><input type="checkbox" value="real_merchant_ai" checked> real_merchant_ai</label>
+    </div>
+    <label><input type="checkbox" id="run-baseline"> 设为 baseline</label>
+    <div style="display:flex;gap:12px;margin-top:16px;">
+      <button class="btn btn-primary" onclick="startRun()">开始运行</button>
+      <button class="btn" onclick="hideRunDialog()">取消</button>
+    </div>
+    <div class="run-log" id="run-log" style="display:none;"></div>
+  </div>
 </div>
 <script>
 const TAB_NAMES = {overview:'总览',scores:'评分',matrix:'混淆矩阵',cases:'用例详情',dataset:'数据集',compare:'对比'};
@@ -320,10 +366,144 @@ async function renderDataset() {
     document.getElementById('tab-dataset').innerHTML = '<div class="loading">加载数据集失败</div>';
   }
 }
-function showRunDialog() { alert('请使用命令行运行评测：python -m eval.run_eval --baseline'); }
+// === 运行评测 ===
+function showRunDialog() {
+  document.getElementById('run-modal').classList.add('show');
+}
+function hideRunDialog() {
+  document.getElementById('run-modal').classList.remove('show');
+}
+async function startRun() {
+  const name = document.getElementById('run-name').value || 'unnamed';
+  const cats = [...document.querySelectorAll('.checkbox-group input:checked')].map(c => c.value);
+  const log = document.getElementById('run-log');
+  log.style.display = 'block';
+  log.innerHTML = '⏳ 正在启动评测...\n';
+  try {
+    const res = await fetch('/api/run', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({categories: cats, name: name})
+    });
+    const {run_id} = await res.json();
+    pollRunStatus(run_id);
+  } catch(e) {
+    log.innerHTML += '<span class="log-fail">启动失败: ' + e.message + '</span>\n';
+  }
+}
+async function pollRunStatus(runId) {
+  const log = document.getElementById('run-log');
+  const poll = setInterval(async () => {
+    try {
+      const res = await fetch('/api/run/' + runId + '/status');
+      const data = await res.json();
+      log.innerHTML = `⏳ 进度: ${data.completed}/${data.total} (${(data.progress*100).toFixed(0)}%)\n`;
+      log.innerHTML += `当前: ${data.current_case || '-'}\n\n`;
+      (data.results_so_far || []).forEach(r => {
+        const cls = r.error ? 'log-skip' : r.tier_match ? 'log-pass' : 'log-fail';
+        const icon = r.error ? '⏭️' : r.tier_match ? '✅' : '❌';
+        log.innerHTML += `<span class="${cls}">${icon} ${r.case_id}: ${r.actual_tier || 'ERR'} (预期 ${(r.expected_tier_range||[]).join('/')})</span>\n`;
+      });
+      log.scrollTop = log.scrollHeight;
+      if (data.status === 'completed') {
+        clearInterval(poll);
+        log.innerHTML += '\n✅ 评测完成！正在刷新...\n';
+        setTimeout(() => { hideRunDialog(); loadExperimentList(); loadExperiment('latest'); }, 1500);
+      }
+    } catch(e) {}
+  }, 2000);
+}
+// === 实验对比 Tab ===
+async function renderCompare() {
+  try {
+    const res = await fetch('/api/experiments');
+    const exps = await res.json();
+    if (exps.length < 2) {
+      document.getElementById('tab-compare').innerHTML =
+        '<div class="loading">需要至少 2 次实验才能对比。多运行几次评测后再来。</div>';
+      return;
+    }
+    let html = '<h3 style="margin-bottom:16px;">实验对比</h3>';
+    html += '<div class="filter-bar">';
+    html += '<select id="compare-a" class="btn">';
+    exps.forEach(e => html += `<option value="${e.experiment_id}">${(e.name || e.experiment_id).substring(0,25)}</option>`);
+    html += '</select><span style="color:#8b949e;">vs</span>';
+    html += '<select id="compare-b" class="btn">';
+    exps.forEach((e,i) => html += `<option value="${e.experiment_id}" ${i===1?'selected':''}>${(e.name || e.experiment_id).substring(0,25)}</option>`);
+    html += '</select>';
+    html += '<button class="btn btn-primary" onclick="runCompare()">对比</button></div>';
+    html += '<div id="compare-result"></div>';
+    document.getElementById('tab-compare').innerHTML = html;
+  } catch(e) {
+    document.getElementById('tab-compare').innerHTML = '<div class="loading">加载实验列表失败</div>';
+  }
+}
+async function runCompare() {
+  const a = document.getElementById('compare-a').value;
+  const b = document.getElementById('compare-b').value;
+  try {
+    const res = await fetch('/api/compare/' + a + '/' + b);
+    const data = await res.json();
+    const s1 = data.exp1_summary || {};
+    const s2 = data.exp2_summary || {};
+    const reg = data.regression || {};
+    let html = '<div class="compare-grid" style="margin-top:16px;">';
+    const fields = [
+      ['准确率', s1, s2, 'passed', 'total_cases', true],
+      ['误报率', s1, s2, 'false_positive_rate', null, false],
+      ['漏报率', s1, s2, 'false_negative_rate', null, false],
+      ['严重漏报', s1, s2, 'severe_miss_count', null, false],
+    ];
+    fields.forEach(([label, sa, sb, key, divKey, higherBetter]) => {
+      let va, vb;
+      if (divKey) { va = sa[divKey] ? sa[key]/sa[divKey] : 0; vb = sb[divKey] ? sb[key]/sb[divKey] : 0; }
+      else { va = sa[key] ?? 0; vb = sb[key] ?? 0; }
+      const isRate = key.includes('rate') || divKey;
+      const delta = vb - va;
+      const deltaStr = delta !== 0 ? (delta > 0 ? '+' : '') + (isRate ? (delta*100).toFixed(1)+'%' : delta.toFixed(2)) : '0';
+      const deltaCls = delta === 0 ? 'delta-same' :
+                       (higherBetter ? (delta > 0 ? 'delta-up' : 'delta-down') : (delta < 0 ? 'delta-up' : 'delta-down'));
+      const display = isRate ? (vb*100).toFixed(1)+'%' : vb;
+      html += `<div class="card"><div class="label">${label}</div>
+        <div class="value">${display}<span class="delta ${deltaCls}">${deltaStr}</span></div></div>`;
+    });
+    html += '</div>';
+    // Regression items
+    const items = reg.items || [];
+    const regressions = items.filter(i => i.change_type === 'regressed' || i.change_type === 'new_failure');
+    const improvements = items.filter(i => i.change_type === 'improved' || i.change_type === 'fixed');
+    if (regressions.length > 0) {
+      html += '<h4 style="margin:16px 0 8px;color:#f85149;">⚠️ 回归 (' + regressions.length + ')</h4><ul style="padding-left:20px;">';
+      regressions.forEach(r => html += `<li style="color:#f85149;">${r.case_id}: ${r.baseline_tier} → ${r.current_tier} — ${r.detail}</li>`);
+      html += '</ul>';
+    }
+    if (improvements.length > 0) {
+      html += '<h4 style="margin:16px 0 8px;color:#3fb950;">✅ 改善 (' + improvements.length + ')</h4><ul style="padding-left:20px;">';
+      improvements.forEach(r => html += `<li style="color:#3fb950;">${r.case_id}: ${r.baseline_tier} → ${r.current_tier} — ${r.detail}</li>`);
+      html += '</ul>';
+    }
+    if (regressions.length === 0 && improvements.length === 0) {
+      html += '<p style="margin-top:16px;color:#8b949e;">两次实验结果完全相同。</p>';
+    }
+    // Score delta
+    const sd = data.score_delta || {};
+    if (Object.keys(sd).length > 0) {
+      html += '<h4 style="margin:16px 0 8px;">评分维度变化</h4><table><thead><tr><th>维度</th><th>变化</th></tr></thead><tbody>';
+      for (const [dim, d] of Object.entries(sd)) {
+        const cls = d > 0 ? 'delta-up' : d < 0 ? 'delta-down' : 'delta-same';
+        html += `<tr><td>${dim}</td><td><span class="${cls}">${d > 0 ? '+' : ''}${(d*100).toFixed(1)}%</span></td></tr>`;
+      }
+      html += '</tbody></table>';
+    }
+    document.getElementById('compare-result').innerHTML = html;
+  } catch(e) {
+    document.getElementById('compare-result').innerHTML = '<div class="loading">对比失败: ' + e.message + '</div>';
+  }
+}
 loadExperimentList();
 loadExperiment('latest');
 renderDataset();
+renderCompare();
 </script>
 </body>
 </html>

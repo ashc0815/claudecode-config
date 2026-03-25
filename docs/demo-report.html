@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ConcurShield 评测报告</title>
+<style>
+:root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --pass: #3fb950;
+    --pass-bg-c: rgba(63,185,80,0.15);
+    --fail: #f85149;
+    --fail-bg-c: rgba(248,81,73,0.15);
+    --warn: #d29922;
+    --warn-bg-c: rgba(210,153,34,0.15);
+    --accent: #58a6ff;
+    --radius: 8px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+h1 {
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(90deg, var(--accent), var(--pass));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+h2 {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+}
+section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+th, td {
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+th { color: var(--text-dim); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+tr:hover { background: var(--surface2); }
+.meta-table td:first-child { color: var(--text-dim); width: 120px; }
+code { background: var(--surface2); padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.85em; }
+
+/* Cards */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    text-align: center;
+}
+.card-value { font-size: 1.6rem; font-weight: 700; }
+.card-label { font-size: 0.8rem; color: var(--text-dim); margin-top: 0.25rem; }
+.card.pass .card-value { color: var(--pass); }
+.card.fail .card-value { color: var(--fail); }
+.card.warn .card-value { color: var(--warn); }
+
+/* Bars */
+.bar { height: 4px; background: var(--surface); border-radius: 2px; margin-top: 0.5rem; overflow: hidden; }
+.bar-inline { display: inline-block; width: 60px; height: 8px; background: var(--surface); border-radius: 4px; overflow: hidden; vertical-align: middle; margin-right: 0.5rem; }
+.bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+.pass-bg { background: var(--pass); }
+.fail-bg { background: var(--fail); }
+.warn-bg { background: var(--warn); }
+
+/* Badges */
+.badge {
+    display: inline-block;
+    padding: 0.15em 0.5em;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.badge.pass { background: var(--pass-bg-c); color: var(--pass); }
+.badge.fail { background: var(--fail-bg-c); color: var(--fail); }
+.badge.warn { background: var(--warn-bg-c); color: var(--warn); }
+.badge.baseline { background: rgba(88,166,255,0.15); color: var(--accent); }
+
+/* Confusion matrix */
+.cm-table { text-align: center; }
+.cm-table th, .cm-table td { width: 60px; text-align: center; }
+.cm-diag { background: var(--pass-bg-c); color: var(--pass); font-weight: 700; }
+.cm-off { background: var(--fail-bg-c); color: var(--fail); }
+
+/* Case details */
+.case-table tr { cursor: pointer; }
+.status-icon { font-weight: 700; font-size: 1.1rem; }
+.status-icon.pass { color: var(--pass); }
+.status-icon.fail { color: var(--fail); }
+.status-icon.warn { color: var(--warn); }
+.pass-row { border-left: 3px solid var(--pass); }
+.fail-row { border-left: 3px solid var(--fail); }
+.warn-row { border-left: 3px solid var(--warn); }
+.detail-row { display: none; }
+.expanded + .detail-row { display: table-row; }
+.detail-content { padding: 0.75rem; background: var(--bg); border-radius: var(--radius); }
+.error-msg { color: var(--fail); margin-top: 0.5rem; font-family: monospace; white-space: pre-wrap; }
+
+/* Filter */
+.filter-bar { display: flex; gap: 0.75rem; margin-bottom: 1rem; }
+.filter-bar input, .filter-bar select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.75rem;
+    color: var(--text);
+    font-size: 0.9rem;
+}
+.filter-bar input { flex: 1; }
+.filter-bar input:focus, .filter-bar select:focus { outline: none; border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+    <h1>ConcurShield 评测报告</h1>
+    <table class="meta-table">
+        <tbody>
+        <tr><td>生成时间</td><td>2026-03-25 06:14:30 UTC</td></tr>
+        <tr><td>总用例数</td><td>11</td></tr>
+        <tr><td>实验 ID</td><td><code>demo-abcdef12</code></td></tr>
+        <tr><td>实验名称</td><td>Demo 评测 v1.0</td></tr>
+        <tr><td>数据集版本</td><td><code>v-8f3a2b1c9d0e</code></td></tr>
+        <tr><td>Git commit</td><td><code>a305cd3</code></td></tr>
+        <tr><td>标记</td><td><span class="badge baseline">BASELINE</span></td></tr></tbody>
+    </table>
+</header>
+
+<section>
+    <h2>总览</h2>
+    
+    <div class="cards">
+        <div class="card">
+            <div class="card-value">11</div>
+            <div class="card-label">总用例</div>
+        </div>
+        <div class="card pass">
+            <div class="card-value">8</div>
+            <div class="card-label">通过 (72.7%)</div>
+            <div class="bar"><div class="bar-fill pass-bg" style="width:72.7%"></div></div>
+        </div>
+        <div class="card fail">
+            <div class="card-value">2</div>
+            <div class="card-label">失败 (18.2%)</div>
+            <div class="bar"><div class="bar-fill fail-bg" style="width:18.2%"></div></div>
+        </div>
+        <div class="card warn">
+            <div class="card-value">1</div>
+            <div class="card-label">错误 (9.1%)</div>
+        </div>
+        <div class="card">
+            <div class="card-value">9.1%</div>
+            <div class="card-label">误报率 (FP)</div>
+        </div>
+        <div class="card">
+            <div class="card-value">9.1%</div>
+            <div class="card-label">漏报率 (FN)</div>
+        </div>
+        <div class="card fail">
+            <div class="card-value">1</div>
+            <div class="card-label">严重漏报</div>
+        </div>
+    </div>
+</section>
+
+
+    <section>
+        <h2>多维评分汇总</h2>
+        <table>
+            <thead><tr><th>维度</th><th>均值</th><th>最小</th><th>最大</th><th>通过率</th><th>样本</th></tr></thead>
+            <tbody>
+            <tr>
+                <td>CostBudget</td>
+                <td>
+                    <div class="bar-inline">
+                        <div class="bar-fill warn-bg" style="width:60%"></div>
+                    </div>
+                    0.60
+                </td>
+                <td>0.30</td>
+                <td>0.80</td>
+                <td><span class="badge warn">60%</span></td>
+                <td>10</td>
+            </tr>
+            <tr>
+                <td>LatencySLA</td>
+                <td>
+                    <div class="bar-inline">
+                        <div class="bar-fill pass-bg" style="width:90%"></div>
+                    </div>
+                    0.90
+                </td>
+                <td>0.82</td>
+                <td>0.97</td>
+                <td><span class="badge pass">100%</span></td>
+                <td>10</td>
+            </tr>
+            <tr>
+                <td>SignalRecall</td>
+                <td>
+                    <div class="bar-inline">
+                        <div class="bar-fill pass-bg" style="width:85%"></div>
+                    </div>
+                    0.85
+                </td>
+                <td>0.00</td>
+                <td>1.00</td>
+                <td><span class="badge pass">80%</span></td>
+                <td>10</td>
+            </tr>
+            <tr>
+                <td>TierAccuracy</td>
+                <td>
+                    <div class="bar-inline">
+                        <div class="bar-fill pass-bg" style="width:82%"></div>
+                    </div>
+                    0.82
+                </td>
+                <td>0.00</td>
+                <td>1.00</td>
+                <td><span class="badge pass">82%</span></td>
+                <td>10</td>
+            </tr></tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>按类别准确率</h2>
+        <table>
+            <thead><tr><th>类别</th><th>总数</th><th>通过</th><th>准确率</th></tr></thead>
+            <tbody>
+            <tr>
+                <td>ai_generated</td>
+                <td>2</td>
+                <td>2</td>
+                <td>
+                    <div class="bar-inline">
+                        <div class="bar-fill pass-bg" style="width:100%"></div>
+                    </div>
+                    <span class="badge pass">100%</span>
+                </td>
+            </tr>
+            <tr>
+                <td>duplicates</td>
+                <td>1</td>
+                <td>1</td>
+                <td>
+                    <div class="bar-inline">
+                        <div class="bar-fill pass-bg" style="width:100%"></div>
+                    </div>
+                    <span class="badge pass">100%</span>
+                </td>
+            </tr>
+            <tr>
+                <td>normal</td>
+                <td>4</td>
+                <td>2</td>
+                <td>
+                    <div class="bar-inline">
+                        <div class="bar-fill warn-bg" style="width:50%"></div>
+                    </div>
+                    <span class="badge warn">50%</span>
+                </td>
+            </tr>
+            <tr>
+                <td>prompt_injection</td>
+                <td>1</td>
+                <td>1</td>
+                <td>
+                    <div class="bar-inline">
+                        <div class="bar-fill pass-bg" style="width:100%"></div>
+                    </div>
+                    <span class="badge pass">100%</span>
+                </td>
+            </tr>
+            <tr>
+                <td>tampered</td>
+                <td>3</td>
+                <td>2</td>
+                <td>
+                    <div class="bar-inline">
+                        <div class="bar-fill warn-bg" style="width:67%"></div>
+                    </div>
+                    <span class="badge warn">67%</span>
+                </td>
+            </tr></tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>混淆矩阵</h2>
+        <table class="cm-table">
+            <thead><tr><th>期望 \ 实际</th><th>T1</th><th>T2</th><th>T3</th><th>T4</th></tr></thead>
+            <tbody><tr><th>T1</th><td class="cm-diag">3</td><td class="cm-off">1</td><td class="">0</td><td class="">0</td></tr><tr><th>T2</th><td class="">0</td><td class="cm-diag">0</td><td class="">0</td><td class="">0</td></tr><tr><th>T3</th><td class="cm-off">1</td><td class="">0</td><td class="cm-diag">4</td><td class="cm-off">1</td></tr><tr><th>T4</th><td class="">0</td><td class="">0</td><td class="">0</td><td class="cm-diag">1</td></tr></tbody>
+        </table>
+    </section>
+
+
+    <section>
+        <h2>回归对比 <span class="badge fail">检测到退化</span></h2>
+        <p>Baseline: <code>baseline-001</code> vs Current: <code>demo-abcdef12</code></p>
+        <div class="cards">
+            <div class="card"><div class="card-value">10</div><div class="card-label">对比用例</div></div>
+            <div class="card"><div class="card-value">+5.00%</div><div class="card-label">准确率变化</div></div>
+            <div class="card pass"><div class="card-value">2</div><div class="card-label">改善</div></div>
+            <div class="card fail"><div class="card-value">1</div><div class="card-label">退化</div></div>
+            <div class="card pass"><div class="card-value">1</div><div class="card-label">修复</div></div>
+            <div class="card fail"><div class="card-value">1</div><div class="card-label">新增失败</div></div>
+        </div>
+        <table>
+            <thead><tr><th>用例</th><th>变化</th><th>详情</th></tr></thead>
+            <tbody>
+                <tr class="fail-row">
+                    <td><code>TAMPERED_003</code></td>
+                    <td><span class="badge fail">新增失败</span></td>
+                    <td>T3-&gt;T1, 严重漏报</td>
+                </tr>
+                <tr class="fail-row">
+                    <td><code>NORMAL_003</code></td>
+                    <td><span class="badge fail">退化</span></td>
+                    <td>T1-&gt;T2, 新增误报</td>
+                </tr>
+                <tr class="pass-row">
+                    <td><code>AI_GEN_002</code></td>
+                    <td><span class="badge pass">改善</span></td>
+                    <td>T1-&gt;T2, 更接近预期</td>
+                </tr>
+                <tr class="pass-row">
+                    <td><code>DUP_001</code></td>
+                    <td><span class="badge pass">修复</span></td>
+                    <td>修复: T1-&gt;T3</td>
+                </tr></tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>逐用例详情</h2>
+        <div class="filter-bar">
+            <input type="text" id="caseFilter" placeholder="搜索用例 ID / 类别..." oninput="filterCases()">
+            <select id="statusFilter" onchange="filterCases()">
+                <option value="all">全部状态</option>
+                <option value="pass">通过</option>
+                <option value="fail">失败</option>
+                <option value="warn">错误</option>
+            </select>
+        </div>
+        <table class="case-table" id="caseTable">
+            <thead><tr><th></th><th>ID</th><th>类别</th><th>期望 Tier</th><th>实际 Tier</th><th>分数</th><th>耗时</th><th>标签</th></tr></thead>
+            <tbody>
+            <tr class="pass-row" onclick="this.classList.toggle('expanded')">
+                <td><span class="status-icon pass">&#10003;</span></td>
+                <td><code>NORMAL_001</code></td>
+                <td>normal</td>
+                <td>T1</td>
+                <td>T1</td>
+                <td>0.15</td>
+                <td>320ms</td>
+                <td></td>
+            </tr>
+            <tr class="detail-row">
+                <td colspan="8">
+                    <div class="detail-content">
+                        <p><strong>信号:</strong> -</p>
+                        <p><strong>评分:</strong> <span class="badge pass" title="">TierAccuracy: 1.00</span> <span class="badge pass" title="">SignalRecall: 1.00</span> <span class="badge pass" title="">LatencySLA: 0.94</span> <span class="badge warn" title="">CostBudget: 0.70</span> </p>
+                        
+                    </div>
+                </td>
+            </tr>
+            <tr class="pass-row" onclick="this.classList.toggle('expanded')">
+                <td><span class="status-icon pass">&#10003;</span></td>
+                <td><code>NORMAL_002</code></td>
+                <td>normal</td>
+                <td>T1</td>
+                <td>T1</td>
+                <td>0.08</td>
+                <td>280ms</td>
+                <td></td>
+            </tr>
+            <tr class="detail-row">
+                <td colspan="8">
+                    <div class="detail-content">
+                        <p><strong>信号:</strong> -</p>
+                        <p><strong>评分:</strong> <span class="badge pass" title="">TierAccuracy: 1.00</span> <span class="badge pass" title="">SignalRecall: 1.00</span> <span class="badge pass" title="">LatencySLA: 0.94</span> <span class="badge pass" title="">CostBudget: 0.80</span> </p>
+                        
+                    </div>
+                </td>
+            </tr>
+            <tr class="fail-row" onclick="this.classList.toggle('expanded')">
+                <td><span class="status-icon fail">&#10007;</span></td>
+                <td><code>NORMAL_003</code></td>
+                <td>normal</td>
+                <td>T1</td>
+                <td>T2</td>
+                <td>0.35</td>
+                <td>450ms</td>
+                <td><span class="badge warn">FP</span> </td>
+            </tr>
+            <tr class="detail-row">
+                <td colspan="8">
+                    <div class="detail-content">
+                        <p><strong>信号:</strong> visual_anomaly</p>
+                        <p><strong>评分:</strong> <span class="badge fail" title="T2 not in [T1]">TierAccuracy: 0.00</span> <span class="badge pass" title="">SignalRecall: 1.00</span> <span class="badge pass" title="">LatencySLA: 0.91</span> <span class="badge warn" title="">CostBudget: 0.60</span> </p>
+                        
+                    </div>
+                </td>
+            </tr>
+            <tr class="pass-row" onclick="this.classList.toggle('expanded')">
+                <td><span class="status-icon pass">&#10003;</span></td>
+                <td><code>TAMPERED_001</code></td>
+                <td>tampered</td>
+                <td>T3-T4</td>
+                <td>T3</td>
+                <td>0.78</td>
+                <td>680ms</td>
+                <td></td>
+            </tr>
+            <tr class="detail-row">
+                <td colspan="8">
+                    <div class="detail-content">
+                        <p><strong>信号:</strong> metadata_mismatch, visual_anomaly</p>
+                        <p><strong>评分:</strong> <span class="badge pass" title="">TierAccuracy: 1.00</span> <span class="badge pass" title="">SignalRecall: 1.00</span> <span class="badge pass" title="">LatencySLA: 0.86</span> <span class="badge warn" title="">CostBudget: 0.50</span> </p>
+                        
+                    </div>
+                </td>
+            </tr>
+            <tr class="pass-row" onclick="this.classList.toggle('expanded')">
+                <td><span class="status-icon pass">&#10003;</span></td>
+                <td><code>TAMPERED_002</code></td>
+                <td>tampered</td>
+                <td>T3-T4</td>
+                <td>T4</td>
+                <td>0.92</td>
+                <td>720ms</td>
+                <td></td>
+            </tr>
+            <tr class="detail-row">
+                <td colspan="8">
+                    <div class="detail-content">
+                        <p><strong>信号:</strong> metadata_mismatch, font_inconsistency, visual_anomaly</p>
+                        <p><strong>评分:</strong> <span class="badge pass" title="">TierAccuracy: 1.00</span> <span class="badge pass" title="">SignalRecall: 1.00</span> <span class="badge pass" title="">LatencySLA: 0.86</span> <span class="badge fail" title="">CostBudget: 0.40</span> </p>
+                        
+                    </div>
+                </td>
+            </tr>
+            <tr class="fail-row" onclick="this.classList.toggle('expanded')">
+                <td><span class="status-icon fail">&#10007;</span></td>
+                <td><code>TAMPERED_003</code></td>
+                <td>tampered</td>
+                <td>T3-T4</td>
+                <td>T1</td>
+                <td>0.12</td>
+                <td>350ms</td>
+                <td><span class="badge warn">FN</span> <span class="badge fail">严重漏报</span> </td>
+            </tr>
+            <tr class="detail-row">
+                <td colspan="8">
+                    <div class="detail-content">
+                        <p><strong>信号:</strong> -</p>
+                        <p><strong>评分:</strong> <span class="badge fail" title="T1 not in [T3,T4]">TierAccuracy: 0.00</span> <span class="badge fail" title="missed all signals">SignalRecall: 0.00</span> <span class="badge pass" title="">LatencySLA: 0.93</span> <span class="badge warn" title="">CostBudget: 0.70</span> </p>
+                        
+                    </div>
+                </td>
+            </tr>
+            <tr class="pass-row" onclick="this.classList.toggle('expanded')">
+                <td><span class="status-icon pass">&#10003;</span></td>
+                <td><code>AI_GEN_001</code></td>
+                <td>ai_generated</td>
+                <td>T2-T3</td>
+                <td>T3</td>
+                <td>0.72</td>
+                <td>890ms</td>
+                <td></td>
+            </tr>
+            <tr class="detail-row">
+                <td colspan="8">
+                    <div class="detail-content">
+                        <p><strong>信号:</strong> ai_artifacts, metadata_mismatch</p>
+                        <p><strong>评分:</strong> <span class="badge pass" title="">TierAccuracy: 1.00</span> <span class="badge pass" title="">SignalRecall: 1.00</span> <span class="badge pass" title="">LatencySLA: 0.82</span> <span class="badge fail" title="">CostBudget: 0.30</span> </p>
+                        
+                    </div>
+                </td>
+            </tr>
+            <tr class="pass-row" onclick="this.classList.toggle('expanded')">
+                <td><span class="status-icon pass">&#10003;</span></td>
+                <td><code>AI_GEN_002</code></td>
+                <td>ai_generated</td>
+                <td>T2-T3</td>
+                <td>T2</td>
+                <td>0.45</td>
+                <td>760ms</td>
+                <td></td>
+            </tr>
+            <tr class="detail-row">
+                <td colspan="8">
+                    <div class="detail-content">
+                        <p><strong>信号:</strong> ai_artifacts</p>
+                        <p><strong>评分:</strong> <span class="badge pass" title="">TierAccuracy: 1.00</span> <span class="badge warn" title="missed metadata_mismatch">SignalRecall: 0.50</span> <span class="badge pass" title="">LatencySLA: 0.85</span> <span class="badge fail" title="">CostBudget: 0.40</span> </p>
+                        
+                    </div>
+                </td>
+            </tr>
+            <tr class="pass-row" onclick="this.classList.toggle('expanded')">
+                <td><span class="status-icon pass">&#10003;</span></td>
+                <td><code>INJECT_001</code></td>
+                <td>prompt_injection</td>
+                <td>T4</td>
+                <td>T4</td>
+                <td>0.95</td>
+                <td>200ms</td>
+                <td></td>
+            </tr>
+            <tr class="detail-row">
+                <td colspan="8">
+                    <div class="detail-content">
+                        <p><strong>信号:</strong> prompt_injection_detected</p>
+                        <p><strong>评分:</strong> <span class="badge pass" title="">TierAccuracy: 1.00</span> <span class="badge pass" title="">SignalRecall: 1.00</span> <span class="badge pass" title="">LatencySLA: 0.96</span> <span class="badge pass" title="">CostBudget: 0.80</span> </p>
+                        
+                    </div>
+                </td>
+            </tr>
+            <tr class="pass-row" onclick="this.classList.toggle('expanded')">
+                <td><span class="status-icon pass">&#10003;</span></td>
+                <td><code>DUP_001</code></td>
+                <td>duplicates</td>
+                <td>T3-T4</td>
+                <td>T3</td>
+                <td>0.82</td>
+                <td>150ms</td>
+                <td></td>
+            </tr>
+            <tr class="detail-row">
+                <td colspan="8">
+                    <div class="detail-content">
+                        <p><strong>信号:</strong> duplicate_hash</p>
+                        <p><strong>评分:</strong> <span class="badge pass" title="">TierAccuracy: 1.00</span> <span class="badge pass" title="">SignalRecall: 1.00</span> <span class="badge pass" title="">LatencySLA: 0.97</span> <span class="badge pass" title="">CostBudget: 0.80</span> </p>
+                        
+                    </div>
+                </td>
+            </tr>
+            <tr class="warn-row" onclick="this.classList.toggle('expanded')">
+                <td><span class="status-icon warn">&#9888;</span></td>
+                <td><code>ERROR_001</code></td>
+                <td>normal</td>
+                <td>T1</td>
+                <td>N/A</td>
+                <td>0.0</td>
+                <td>5200ms</td>
+                <td></td>
+            </tr>
+            <tr class="detail-row">
+                <td colspan="8">
+                    <div class="detail-content">
+                        <p><strong>信号:</strong> -</p>
+                        
+                        <div class="error-msg">TimeoutError: API call exceeded 5000ms limit</div>
+                    </div>
+                </td>
+            </tr></tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>成本分析</h2>
+        <div class="cards">
+            <div class="card"><div class="card-value">50</div><div class="card-label">总 API 调用</div></div>
+            <div class="card"><div class="card-value">5000ms</div><div class="card-label">总耗时</div></div>
+            <div class="card"><div class="card-value">454.5ms</div><div class="card-label">平均耗时</div></div>
+        </div>
+    </section>
+
+<footer style="text-align:center; color:var(--text-dim); padding:2rem 0; font-size:0.8rem;">
+    ConcurShield Eval Platform &mdash; 2026-03-25 06:14:30 UTC
+</footer>
+
+<script>
+function filterCases() {
+    const text = document.getElementById('caseFilter').value.toLowerCase();
+    const status = document.getElementById('statusFilter').value;
+    const rows = document.querySelectorAll('#caseTable tbody tr');
+    for (let i = 0; i < rows.length; i += 2) {
+        const dataRow = rows[i];
+        const detailRow = rows[i + 1];
+        const id = dataRow.querySelector('code')?.textContent.toLowerCase() || '';
+        const cat = dataRow.children[2]?.textContent.toLowerCase() || '';
+        const rowClass = dataRow.className;
+        const matchText = !text || id.includes(text) || cat.includes(text);
+        const matchStatus = status === 'all' || rowClass.includes(status);
+        const show = matchText && matchStatus;
+        dataRow.style.display = show ? '' : 'none';
+        detailRow.style.display = 'none';
+        dataRow.classList.remove('expanded');
+    }
+}
+</script>
+</body>
+</html>

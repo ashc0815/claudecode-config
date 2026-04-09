@@ -45,6 +45,58 @@ Built a 口播 video content agent workflow using Claude Code Skills.
 
 ---
 
+## LinkedIn Multi-Agent System (2026-03-10)
+
+Extended the content creation pipeline into a full LinkedIn growth system with 4 new skills.
+
+### New Skills Created
+
+- `linkedin-analyst` — Weekly performance data review (impressions, saves, reactions, comments). Calculates save rate as primary KPI, identifies patterns, generates optimization recommendations.
+- `linkedin-strategist` — Consumes analyst output, updates persistent strategy file (`linkedin-strategy.md`). Manages topic mix, hook formula priority, posting schedule, audience targeting.
+- `linkedin-engager` — Daily engagement agent. Generates thoughtful comments for similar creators' posts. Runs ~1 hour after own post. Maintains creator watch list (`linkedin-creators.md`).
+- `linkedin-orchestrator` — Meta-orchestrator coordinating all agents. Supports `--daily` (post + engage), `--weekly` (analyze + strategize), `--full` (both), and `status` modes.
+
+### Updated Architecture (v3 — Multi-Agent System)
+
+```
+/linkedin-orchestrator (meta-orchestrator)
+├── --weekly: /linkedin-analyst → /linkedin-strategist
+├── --daily:  /content-agent [topic] → /linkedin-engager
+└── --full:   weekly + daily combined
+```
+
+**Existing content pipeline (unchanged):**
+```
+/content-agent [topic]
+├── /brave-research
+├── /script-analyzer
+├── /blindspot-detector
+├── /kobo-optimizer
+└── /content-memory log
+```
+
+**New growth pipeline:**
+```
+/linkedin-analyst      → Weekly data review → feeds strategist
+/linkedin-strategist   → Updates linkedin-strategy.md → feeds content-agent
+/linkedin-engager      → Daily commenting on peer creators → builds network
+```
+
+### New Persistent Files
+- `linkedin-strategy.md` — Single source of truth for content strategy (owned by strategist)
+- `linkedin-creators.md` — Creator watch list + engagement history (owned by engager)
+
+### Scheduling
+| Task | Frequency | Entry Point |
+|------|-----------|-------------|
+| Content creation | 2-3x/week | `/linkedin-orchestrator --daily` or `/content-agent` |
+| Peer engagement | Daily after posting | `/linkedin-engager` or `--daily` step 3 |
+| Performance review | Weekly (Monday) | `/linkedin-orchestrator --weekly` |
+| Strategy update | Weekly (after review) | Auto-triggered by `--weekly` |
+| Memory review | Monthly | `/content-memory review` |
+
+---
+
 ## 对话记录摘要（2026-02-28）
 
 ### 测试选题：AI如何改变finance analyst的日常工作

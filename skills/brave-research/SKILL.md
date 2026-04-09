@@ -9,6 +9,57 @@ Real-time web research with built-in source verification. Returns a structured r
 
 ## Instructions
 
+### SCAN Mode — Auto-Topic Discovery (for `--morning` pipeline)
+
+When called with `SCAN` mode (by linkedin-orchestrator `--morning`), the goal is NOT to research a specific topic — it's to **find today's best topic** from fresh AI + Finance news.
+
+**Step 1: Morning news sweep**
+Run 3-5 WebSearch queries to surface today's freshest AI + Finance stories:
+- `"AI finance" OR "AI banking" OR "AI analyst" latest news [current month] [current year]`
+- `"AI agent" OR "LLM" finance OR Wall Street [current week]`
+- `site:linkedin.com "AI" "finance" trending [current week]` (catch viral LinkedIn takes)
+- `Goldman Sachs OR JPMorgan OR BlackRock AI announcement [current month]`
+- Optional: `AI 金融 最新 [current month]` (for 小红书 angle)
+
+**Step 2: Candidate ranking**
+From the results, pick the top 3 candidates. Score each on:
+
+| Criteria | Weight | What to look for |
+|----------|--------|-----------------|
+| Freshness | 30% | Published in last 48 hours beats last week |
+| Controversy potential | 25% | Does this have a non-obvious take? Could people disagree? |
+| Data availability | 20% | Is there a specific stat or announcement to anchor on? |
+| Audience pain match | 15% | Does this connect to a real pain point from linkedin-strategy.md? |
+| Differentiation | 10% | Has this NOT been covered by benchmark accounts yet? |
+
+**Step 3: Auto-select + verify**
+- Pick the #1 ranked candidate
+- Cross-check against `content-sessions.md` via `/content-memory topic-check` — if similar topic was done in the last 2 weeks, pick #2
+- WebFetch the source article to extract the specific data point or quote for anchoring
+- Output the selected topic with its anchor
+
+**SCAN Output Format:**
+```
+## Morning Scan: [DATE]
+Queries run: [N]
+Stories found: [N]
+
+### Selected Topic
+Topic: [One-line topic]
+Anchor: [Specific news item, stat, or quote — with source URL]
+Anchor type: [News / Company announcement / Report / Viral post]
+Why this one: [1 sentence — freshness + controversy + data]
+Mode recommendation: [--deep if rich data, --fast if reactive take]
+
+### Runners-up
+2. [Topic] — [why not picked: too similar to recent post / less data / less controversial]
+3. [Topic] — [why not picked]
+```
+
+The selected topic and anchor are passed directly to the content-agent autopilot pipeline. No user input needed.
+
+---
+
 ### Phase 1 — PLAN
 Before searching, decompose the research need into:
 1. What specific claim needs evidence? (not "research AI in finance" — "find a stat on AI productivity gains for finance analysts, published 2024-2026")
@@ -56,6 +107,22 @@ For each piece of evidence found, assess:
 - If ≥2 Tier 1/2 sources found with specific data → STRONG EVIDENCE, proceed
 - If only Tier 3 sources found → WEAK EVIDENCE, flag and suggest alternative search angles
 - If no relevant sources found → NO EVIDENCE, recommend reframing the claim or dropping it
+
+### Autopilot Decision Rules (when called from --autopilot pipeline)
+When running inside an autopilot pipeline, do NOT stop to ask the user. Instead:
+
+| Situation | Auto-Decision |
+|-----------|---------------|
+| STRONG EVIDENCE | Proceed. Pass top 2 data points downstream. |
+| WEAK EVIDENCE | Auto-run 1 retry with narrower query. If still weak, proceed with caveat: tag output as "data-light" and recommend observer framing to kobo-optimizer. |
+| NO EVIDENCE | Do NOT ask user. Auto-narrow the topic to the most specific sub-angle that has adjacent data. If still nothing after 1 retry, proceed with "no-data" flag — kobo-optimizer will use counter-intuitive claim formula instead of data shock. |
+| Conflicting sources | Pick the higher-tier source. Note the conflict in output for blindspot-detector to address. |
+| All sources >18 months old | Use the most recent one with a recency caveat. Never block the pipeline for stale data alone. |
+
+**Quality floor (non-negotiable even in autopilot):**
+- Never fabricate or extrapolate statistics
+- Never cite a source without verifying it exists via WebFetch
+- Always tag evidence tier in output so downstream skills can calibrate
 
 ### Phase 4 — REFLECT
 After gathering evidence, ask: does this data strengthen or complicate the original claim?

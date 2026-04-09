@@ -76,6 +76,23 @@ After generating the analysis, run this checklist before outputting:
 - 3-4/5 pass → Output report with explicit gaps flagged as [NEEDS FIX]
 - <3/5 pass → Topic is too vague. Output a revised, narrower topic suggestion instead of the full report.
 
+### Autopilot Decision Rules (when called from --autopilot pipeline)
+When running inside an autopilot pipeline, do NOT stop to ask the user. Instead:
+
+| Situation | Auto-Decision |
+|-----------|---------------|
+| 5/5 checks pass | Proceed immediately. |
+| 3-4/5 pass | Proceed with gaps flagged. Auto-generate the most likely fix for each [NEEDS FIX] item instead of waiting for user input. |
+| <3/5 pass (TOPIC TOO VAGUE) | Do NOT ask user to pick. Auto-select the narrowest, most specific sub-angle using this priority: (1) angle with strongest data from brave-research, (2) angle targeting the most specific audience role, (3) angle with clearest "only I can say this" element. Re-run self-critique once on the narrowed angle. |
+| No "only I can say this" angle found | Default to observer/synthesizer framing: "I've been connecting dots between [X] and [Y]..." — this IS the user's authentic angle. |
+| Hook specificity fails | Auto-replace vague hook with a concrete version: inject a number, a named company, or a specific role title. Never output a hook without at least one concrete noun. |
+| Audience too broad | Auto-narrow to the single highest-scoring pain point role. E.g., "finance professionals" → "FP&A analysts at mid-size firms." |
+
+**Quality floor (non-negotiable even in autopilot):**
+- Core claim must be expressible in one sentence — if it can't be, the topic needs narrowing
+- Target audience must be a specific role, not a category
+- At least 1 concrete data point or named entity must be flagged for the script
+
 ## Output Format
 
 ```

@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>命运 K 线 · 人生作战地图</title>
+<style>
+  :root{
+    --ink:#080b11; --ink2:#0d121b; --panel:#111824; --panel2:#0f1622;
+    --line:#1e2a3a; --gold:#d4af37; --gold2:#e8c468; --gold-dim:#8a7330;
+    --green:#2ec07a; --red:#e5524f; --txt:#d8dee9; --txt-dim:#8a94a6;
+    --blue:#5aa0e0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--ink);color:var(--txt);
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.7}
+  body{max-width:880px;margin:0 auto;padding:0 14px 60px}
+  a{color:var(--gold2)}
+
+  /* 顶栏 */
+  header{padding:22px 4px 14px;text-align:center;border-bottom:1px solid var(--line);
+    position:relative;overflow:hidden}
+  header h1{font-size:20px;letter-spacing:3px;color:var(--gold2);font-weight:600}
+  header .sub{font-size:12px;color:var(--txt-dim);margin-top:6px;letter-spacing:1px}
+  .ticker{font-family:"SF Mono",Consolas,monospace;font-size:11px;color:var(--gold-dim);
+    margin-top:8px;letter-spacing:1px}
+
+  /* tabs */
+  .tabs{position:sticky;top:0;z-index:20;display:flex;gap:6px;padding:12px 0;
+    background:linear-gradient(var(--ink) 70%,rgba(8,11,17,0));margin-bottom:6px}
+  .tab{flex:1;text-align:center;padding:11px 4px;border:1px solid var(--line);
+    border-radius:10px;background:var(--panel2);color:var(--txt-dim);font-size:14px;
+    letter-spacing:2px;cursor:pointer;transition:.18s;user-select:none}
+  .tab:hover{border-color:var(--gold-dim)}
+  .tab.on{color:var(--ink);background:linear-gradient(180deg,var(--gold2),var(--gold));
+    border-color:var(--gold);font-weight:600;box-shadow:0 0 18px rgba(212,175,55,.25)}
+
+  section{display:none;animation:fade .35s ease}
+  section.on{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:18px;margin:14px 0;position:relative}
+  .card h2{font-size:15px;color:var(--gold2);letter-spacing:2px;margin-bottom:12px;
+    display:flex;align-items:center;gap:8px;font-weight:600}
+  .card h2 .dot{width:7px;height:7px;border-radius:50%;background:var(--gold);
+    box-shadow:0 0 8px var(--gold)}
+  .card p{font-size:14.5px;color:var(--txt);margin:8px 0}
+  .muted{color:var(--txt-dim);font-size:13px}
+
+  /* 今日一件事 */
+  .today{background:linear-gradient(135deg,#13202e,#0e1622);
+    border:1px solid var(--gold-dim);border-radius:16px;padding:22px;margin:14px 0}
+  .today .tag{font-size:11px;letter-spacing:3px;color:var(--gold);opacity:.8}
+  .today .act{font-size:18px;line-height:1.85;color:#f0e6cf;margin-top:10px;font-weight:500}
+  .today .date{font-family:"SF Mono",Consolas,monospace;font-size:11px;color:var(--txt-dim);margin-top:12px}
+
+  /* 计算器 */
+  .calc label{display:block;font-size:13px;color:var(--txt-dim);margin:12px 0 5px}
+  .calc input{width:100%;background:var(--ink2);border:1px solid var(--line);
+    color:var(--gold2);font-size:16px;padding:11px 12px;border-radius:9px;
+    font-family:"SF Mono",Consolas,monospace}
+  .calc input:focus{outline:none;border-color:var(--gold)}
+  .calc .row{display:flex;gap:12px}.calc .row>div{flex:1}
+  .result{margin-top:18px;padding:16px;border-radius:11px;background:var(--ink2);
+    border:1px solid var(--line);text-align:center}
+  .result .big{font-size:30px;color:var(--gold2);font-weight:700;
+    font-family:"SF Mono",Consolas,monospace}
+  .result .big.safe{color:var(--green)} .result .big.warn{color:var(--red)}
+  .result .note{font-size:13.5px;color:var(--txt);margin-top:8px}
+
+  /* 四柱 */
+  .pillars{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:6px 0}
+  .pillar{background:var(--ink2);border:1px solid var(--line);border-radius:11px;
+    padding:12px 6px;text-align:center}
+  .pillar .lab{font-size:11px;color:var(--txt-dim);letter-spacing:2px}
+  .pillar .gan{font-size:28px;color:var(--gold2);margin-top:6px;font-weight:600}
+  .pillar .zhi{font-size:28px;color:var(--txt);margin-top:2px;font-weight:600}
+  .pillar.day .gan{color:#fff;text-shadow:0 0 14px var(--gold)}
+  .pillar .ss{font-size:10.5px;color:var(--gold-dim);margin-top:6px;line-height:1.5}
+  .pillar.day .ss{color:var(--gold2)}
+
+  .kv{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+  .chip{font-size:12.5px;padding:5px 11px;border-radius:20px;border:1px solid var(--line);
+    background:var(--ink2);color:var(--txt-dim)}
+  .chip.use{color:var(--green);border-color:#1c4636}
+  .chip.avoid{color:var(--red);border-color:#4a2522}
+  .chip.gold{color:var(--gold2);border-color:var(--gold-dim)}
+
+  canvas{width:100%;display:block;border-radius:10px;background:var(--ink2);
+    border:1px solid var(--line)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--txt-dim);margin-top:10px}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+  /* 六龙时间线 */
+  .dragon{position:relative;margin:10px 0 4px;padding-left:8px}
+  .drow{display:flex;gap:14px;padding:13px 0;border-left:2px solid var(--line);
+    padding-left:20px;position:relative}
+  .drow::before{content:"";position:absolute;left:-7px;top:18px;width:12px;height:12px;
+    border-radius:50%;background:var(--ink);border:2px solid var(--gold-dim)}
+  .drow.now::before{background:var(--gold);box-shadow:0 0 12px var(--gold);border-color:var(--gold)}
+  .drow .stage{min-width:74px}
+  .drow .stage b{color:var(--gold2);font-size:15px;letter-spacing:1px}
+  .drow .stage span{display:block;font-size:11px;color:var(--txt-dim);
+    font-family:"SF Mono",Consolas,monospace;margin-top:3px}
+  .drow .desc{font-size:13.5px;color:var(--txt)}
+  .drow.now .desc{color:#f0e6cf}
+  .nowbadge{display:inline-block;font-size:10px;color:var(--ink);background:var(--gold);
+    padding:1px 7px;border-radius:10px;margin-left:6px;letter-spacing:1px;font-weight:700}
+
+  /* 心法手势 */
+  .mudras{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:6px}
+  .mudra{background:var(--ink2);border:1px solid var(--line);border-radius:12px;
+    padding:14px 8px;text-align:center}
+  .mudra svg{width:62px;height:62px}
+  .mudra b{display:block;color:var(--gold2);font-size:14px;margin-top:6px;letter-spacing:2px}
+  .mudra span{display:block;font-size:11.5px;color:var(--txt-dim);margin-top:4px}
+
+  .learn li{font-size:14px;margin:9px 0;list-style:none;padding-left:20px;position:relative}
+  .learn li::before{content:"◆";color:var(--gold-dim);position:absolute;left:0;font-size:10px;top:4px}
+
+  .disclaimer{font-size:11.5px;color:var(--txt-dim);line-height:1.8;border:1px dashed var(--line);
+    border-radius:11px;padding:14px;margin:20px 0 6px;background:rgba(229,82,79,.04)}
+  .disclaimer b{color:var(--red)}
+  footer{text-align:center;font-size:11px;color:var(--gold-dim);margin-top:24px;letter-spacing:1px}
+</style>
+</head>
+<body>
+<header>
+  <h1>命运 K 线 · 人生作战地图</h1>
+  <div class="sub">己巳年 · 丁火日主 · 一份给你自己的认知图</div>
+  <div class="ticker" id="ticker">— 先活下来，再活得好 · 现金流优先 —</div>
+</header>
+
+<nav class="tabs">
+  <div class="tab on" data-t="now">当下</div>
+  <div class="tab" data-t="chart">命盘</div>
+  <div class="tab" data-t="see">看透</div>
+  <div class="tab" data-t="plan">蓝图</div>
+</nav>
+
+<!-- ================= 当下 ================= -->
+<section class="now on">
+  <div class="today">
+    <div class="tag">TODAY · 今日只做一件事</div>
+    <div class="act" id="todayAct">…</div>
+    <div class="date" id="todayDate"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>此刻，先接住你</h2>
+    <p>你说:未婚,想让事业收入翻倍。我先不急着给你"答案"——</p>
+    <p>你是 <b style="color:var(--gold2)">丁火</b> 命:像一盏灯、一炉火,不是太阳那种烧给所有人看的火,
+       而是<b>能照亮具体一个人、一件事的暖火</b>。灯火最怕两件事:风太大(压力),油太少(消耗)。
+       你现在的累,不是你不行,是<b>油位低了</b>——该添油,不该再逼自己烧更旺。</p>
+    <p>"收入翻倍""正缘结婚"都是好目标,我不会泼冷水。但顺序很重要:
+       <b style="color:var(--gold2)">先把自己养厚、把现金流稳住</b>,你这盏灯才烧得久、烧得稳,
+       好的人和好的钱,才愿意靠近一盏不慌的灯。</p>
+    <p class="muted">下面有个很实在的工具,先帮你看清"还能撑多久"。看清楚,焦虑就会小一半。</p>
+  </div>
+
+  <div class="card calc">
+    <h2><span class="dot"></span>现金流计算器 · 还能撑几个月</h2>
+    <label>① 现在手上的现金 / 可动用存款(元)</label>
+    <input id="cash" type="number" inputmode="numeric" placeholder="例如 80000" value="80000">
+    <div class="row">
+      <div>
+        <label>② 每月支出(元)</label>
+        <input id="out" type="number" inputmode="numeric" placeholder="例如 9000" value="9000">
+      </div>
+      <div>
+        <label>③ 每月进账(元)</label>
+        <input id="in" type="number" inputmode="numeric" placeholder="例如 6000" value="6000">
+      </div>
+    </div>
+    <div class="result" id="calcRes">
+      <div class="big" id="calcBig">—</div>
+      <div class="note" id="calcNote">填上数字,实时计算。</div>
+    </div>
+    <p class="muted" style="margin-top:12px">这把"看不清的恐慌"换成"看得见的数字"。撑得住,就敢慢慢来;
+       不够,就先止漏、先开源——这才是丁火该练的"养油"功夫。</p>
+  </div>
+</section>
+
+<!-- ================= 命盘 ================= -->
+<section class="chart">
+  <div class="card">
+    <h2><span class="dot"></span>四柱 · 你的出厂配置</h2>
+    <div class="pillars">
+      <div class="pillar"><div class="lab">年柱</div><div class="gan">己</div><div class="zhi">巳</div><div class="ss">食神·劫财<br>根:祖辈/少年</div></div>
+      <div class="pillar"><div class="lab">月柱</div><div class="gan">壬</div><div class="zhi">申</div><div class="ss">正官·正财<br>事业/父母</div></div>
+      <div class="pillar day"><div class="lab">日柱·我</div><div class="gan">丁</div><div class="zhi">未</div><div class="ss">日主丁火<br>自己/配偶宫</div></div>
+      <div class="pillar"><div class="lab">时柱</div><div class="gan">甲</div><div class="zhi">辰</div><div class="ss">正印·伤官<br>子女/晚景</div></div>
+    </div>
+    <p class="muted">出生:1989年8月15日 辰时(早7–9点)· 潜江 · 女命 · 立秋后申月生</p>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>日主旺衰 · 用神忌神</h2>
+    <p><b style="color:var(--gold2)">丁火</b> 生于 <b>申月</b>(金当令、火退气),四柱里
+       <b>财(申金)、官(壬水)、食伤(土)</b>都很旺,而帮自己的力量
+       (时干甲木正印、年支巳火、日支未根)虽有,却不算雄厚。</p>
+    <p>判定:<b style="color:var(--gold2)">身偏弱</b>。财官越旺,越需要"我自己"先强起来,才扛得住、用得上。</p>
+    <div class="kv">
+      <span class="chip use">喜用 · 木(印)</span>
+      <span class="chip use">喜用 · 火(比劫)</span>
+      <span class="chip avoid">忌 · 金(财过旺)</span>
+      <span class="chip avoid">忌 · 水(官过旺)</span>
+      <span class="chip avoid">忌 · 湿土(泄火)</span>
+    </div>
+    <p style="margin-top:12px">翻译成人话:<b>你不缺机会、不缺资源(财官旺),你缺的是"底气"和"回血"。</b>
+       凡是<b style="color:var(--green)">给你充电、长见识、给你撑腰的人和事(木火)</b>都该多靠近;
+       凡是<b style="color:var(--red)">让你过度透支、硬扛、消耗(金水土)</b>的,要学会喊停。</p>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>十神格局 · 你这副牌怎么打</h2>
+    <div class="kv" style="margin-bottom:10px">
+      <span class="chip gold">月令正财格</span>
+      <span class="chip gold">正官透干</span>
+      <span class="chip gold">正印护身</span>
+      <span class="chip gold">丁壬相合</span>
+    </div>
+    <p><b>财官印相生,以印护身</b>——这是一副"有事业、有责任、有贵人"的好牌,
+       难点只在一处:<b>身弱要先补自己</b>。补的方式就是"印"(学习、依靠、被滋养)和"比劫"(同伴、自我认同)。</p>
+    <p>关于感情:你的夫星是 <b style="color:var(--gold2)">壬水正官</b>,且与日主 <b>丁壬相合</b>——
+       命里"正缘"的信息是<b>明现而有情</b>的,不是没有,是<b>缘分需要你先站稳</b>。
+       一个不慌、有底气的你,正缘才接得住。</p>
+  </div>
+</section>
+
+<!-- ================= 看透 ================= -->
+<section class="see">
+  <div class="card">
+    <h2><span class="dot"></span>大运趋势图 · 你与"喜用"的契合度</h2>
+    <canvas id="luckCanvas" height="280"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--gold)"></i>当前大运(丙子)</span>
+      <span><i style="background:var(--blue)"></i>换运点</span>
+      <span class="muted">纵轴=自我能量与喜用(木火)的契合度示意,非吉凶/非财富</span>
+    </div>
+    <p style="margin-top:12px">女命阴年顺排,约8虚岁起运。<b style="color:var(--gold2)">2026年起进入「丙子」大运</b>——
+       丙火是帮你的"劫财",像给你这盏灯添了一束同行的火,身弱得帮,是<b>你近十年最该借力的窗口</b>。
+       注意:曲线<b>有升有降</b>,这才真实;低谷不是惩罚,是让你蓄力的山谷。</p>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>流年 K 线 · 能量节律(非择时)</h2>
+    <canvas id="klineCanvas" height="300"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--green)"></i>帮身/回血年(收&gt;开)</span>
+      <span><i style="background:var(--red)"></i>泄耗/守成年(收&lt;开)</span>
+      <span><i style="background:var(--gold)"></i>人生积累感受线</span>
+    </div>
+    <div class="disclaimer" style="margin-top:14px">
+      <b>请务必看清:</b>这条 K 线画的是「你自身能量与心境的节律隐喻」,<b>不是收入预测,
+      更不是任何买卖/投资时机</b>。<b>没有任何命盘能预测市场。</b>
+      所以这里不会、也永远不会出现"哪年能买/能赚"这种话——谁这么跟你说,谁就在骗你。
+      绿蜡烛代表"适合发力、自身有劲"的年份心境,红蜡烛代表"适合守成、养油、别硬扛"的年份心境,
+      仅用于安排自己的节奏。
+    </div>
+  </div>
+</section>
+
+<!-- ================= 蓝图 ================= -->
+<section class="plan">
+  <div class="card">
+    <h2><span class="dot"></span>乾卦六龙 · 人生时间线</h2>
+    <div class="dragon" id="dragon"></div>
+    <p class="muted" style="margin-top:6px">六龙是《乾卦》的成长节奏:潜伏→露头→勤勉戒惧→跃迁→大成→懂得收。
+       你正走到 <b style="color:var(--gold2)">惕龙</b>——"终日乾乾,夕惕若厉"——
+       不是焦虑,是<b>关键期里又勤奋又警醒</b>的状态。这一段稳住了,后面才有"跃"和"飞"。</p>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>该学什么 · 给丁火的养油清单</h2>
+    <ul class="learn">
+      <li><b style="color:var(--gold2)">一门能滋养你的"印"</b>:一项肯长期投入的专业/手艺/认证——丁火靠"印"(甲木)续命,学习就是你的添油。</li>
+      <li><b style="color:var(--gold2)">现金流与记账</b>:不是抠门,是给灯稳住油位。先有"底",才有"敢"。</li>
+      <li><b style="color:var(--gold2)">把技能变现的"一句话"</b>:你最值钱的能力,用一句话说清它替别人解决什么——这是收入翻倍的支点。</li>
+      <li><b style="color:var(--gold2)">课题分离</b>:别替所有人扛(身弱最忌硬扛)。分清"我的事/别人的事/老天的事"。</li>
+      <li><b style="color:var(--gold2)">让自己被看见</b>:丁火不必变成太阳,但要让对的人看见你的暖——正缘从"被看见"开始。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>心法日修 · 每天三分钟</h2>
+    <div class="mudras">
+      <div class="mudra">
+        <svg viewBox="0 0 64 64" fill="none" stroke="#e8c468" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="22" cy="22" r="7"/><path d="M22 29c-7 0-12 5-12 13v6h24"/>
+          <path d="M40 30c0-6 4-10 9-10s9 4 9 10-4 10-9 10"/><path d="M40 30v18"/>
+        </svg>
+        <b>定</b><span>拇指食指轻扣<br>呼吸放慢三次</span>
+      </div>
+      <div class="mudra">
+        <svg viewBox="0 0 64 64" fill="none" stroke="#e8c468" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M16 26c0 9 7 16 16 16s16-7 16-16"/><path d="M16 26l4-8M48 26l-4-8"/>
+          <path d="M24 30v8M32 32v9M40 30v8"/>
+        </svg>
+        <b>蓄</b><span>双手捧于腹前<br>想象收回外散的气</span>
+      </div>
+      <div class="mudra">
+        <svg viewBox="0 0 64 64" fill="none" stroke="#e8c468" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 40c0-7 5-12 12-12s12 5 12 12"/><path d="M20 40h24v6H20z"/>
+          <path d="M32 28V16M26 22l6-6 6 6"/>
+        </svg>
+        <b>厚</b><span>手掌覆下丹田<br>默念"我正在变厚"</span>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:12px">道家心法不玄:<b>定</b>是稳住神,<b>蓄</b>是不外泄,<b>厚</b>是养根基。
+       身弱的丁火,赢在"不慌"——慢就是稳,稳就是快。</p>
+  </div>
+
+  <div class="disclaimer">
+    <b>免责声明:</b>本页所有命理内容,仅作为<b>自我认知与情绪管理的框架</b>,
+    帮助你更温柔地理解自己、安排节奏,<b>不构成任何预测,不代表必然发生</b>。
+    命盘不决定命运,你的选择和行动才决定。<br>
+    本页<b>不提供任何投资、股票、基金、虚拟币的买卖或择时建议</b>,
+    任何"某年能买/能赚"的说法都已被明确拒绝——没有任何命盘能预测市场。
+    如有持续的情绪困扰或经济压力,请寻求专业的心理咨询或财务顾问帮助。你值得被好好对待。
+  </div>
+</section>
+
+<footer>命运 K 线 · 为你一个人手绘 · 先活下来,再活得好</footer>
+
+<script>
+/* ===== tab 切换 ===== */
+const tabs=document.querySelectorAll('.tab');
+const secs={now:document.querySelector('.now'),chart:document.querySelector('.chart'),
+            see:document.querySelector('.see'),plan:document.querySelector('.plan')};
+tabs.forEach(t=>t.onclick=()=>{
+  tabs.forEach(x=>x.classList.remove('on'));t.classList.add('on');
+  Object.values(secs).forEach(s=>s.classList.remove('on'));
+  secs[t.dataset.t].classList.add('on');
+  if(t.dataset.t==='see'){drawLuck();drawKline();}
+});
+
+/* ===== 今日只做一件事 ===== */
+const acts=[
+ "打开记账本,写下此刻账户里真实的数字。看清楚,就是力量。",
+ "给一个能带来收入的人或机会,发一条消息。一条就够了。",
+ "把一笔可有可无的支出取消掉。养厚自己,从止住漏水开始。",
+ "静坐五分钟,手心向上,告诉自己:我可以慢慢来。",
+ "写下你最值钱的一项技能,再想一句:怎么让它替别人解决问题。",
+ "今晚早睡。丁火要养,你的身体是你最大的本钱。",
+ "联系一位很久没联系、却让你安心的人。正缘从'被看见'开始。",
+ "把'我不够'换成'我正在变厚',对自己说三遍。",
+ "整理桌面或钱包的一角。气顺了,财才进得来。",
+ "只写一件今年想完成的小事。一件就好,别贪多。",
+ "出门走二十分钟,让甲木的生气透进你身体里。",
+ "对自己说一句:辛苦了。你已经扛了很多。"
+];
+(function(){
+  const now=new Date();
+  const start=new Date(now.getFullYear(),0,0);
+  const doy=Math.floor((now-start)/86400000);
+  document.getElementById('todayAct').textContent=acts[doy%acts.length];
+  const w=['日','一','二','三','四','五','六'][now.getDay()];
+  document.getElementById('todayDate').textContent=
+    now.getFullYear()+'.'+String(now.getMonth()+1).padStart(2,'0')+'.'+
+    String(now.getDate()).padStart(2,'0')+'  周'+w;
+})();
+
+/* ===== 现金流计算器 ===== */
+function calc(){
+  const c=+document.getElementById('cash').value||0;
+  const o=+document.getElementById('out').value||0;
+  const i=+document.getElementById('in').value||0;
+  const big=document.getElementById('calcBig');
+  const note=document.getElementById('calcNote');
+  const net=o-i; // 每月净消耗
+  big.className='big';
+  if(net<=0){
+    big.textContent='现金流为正 ✓';big.classList.add('safe');
+    note.innerHTML='进账已能覆盖支出,本金不会被吃掉。<br>稳住这个状态,你就有了慢慢来的底气——这正是丁火最需要的"油位充足"。';
+  }else{
+    const m=c/net;
+    big.textContent=m.toFixed(1)+' 个月';
+    if(m>=12){big.classList.add('safe');
+      note.innerHTML='以当前节奏,本金大约能撑 <b>'+m.toFixed(1)+'</b> 个月。<br>余粮充足,可以安心布局开源,不必慌张做决定。';}
+    else if(m>=6){
+      note.innerHTML='以当前节奏,本金大约能撑 <b>'+m.toFixed(1)+'</b> 个月。<br>还算从容,但建议同时做两件事:<b>止漏</b>(砍非必要支出)+<b>开源</b>(让技能变现)。';}
+    else{big.classList.add('warn');
+      note.innerHTML='以当前节奏,本金大约能撑 <b>'+m.toFixed(1)+'</b> 个月。<br>这是要优先处理的信号——<b>先活下来</b>:压缩支出、找一笔稳定进账,把"撑住"放在"翻倍"前面。你不是不行,是需要先添油。';}
+  }
+}
+['cash','out','in'].forEach(id=>document.getElementById(id).addEventListener('input',calc));
+calc();
+
+/* ===== Canvas 工具 ===== */
+function setup(cv){
+  const dpr=window.devicePixelRatio||1;
+  const w=cv.clientWidth, h=cv.height;
+  cv.width=w*dpr; cv.style.height=h+'px'; cv.height=h*dpr;
+  const ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
+  return {ctx,w,h};
+}
+
+/* ===== 大运趋势图 ===== */
+const luck=[
+ {gz:'癸酉',y:1996,v:35},{gz:'甲戌',y:2006,v:58},{gz:'乙亥',y:2016,v:48},
+ {gz:'丙子',y:2026,v:74,now:true},{gz:'丁丑',y:2036,v:66},
+ {gz:'戊寅',y:2046,v:70},{gz:'己卯',y:2056,v:60}
+];
+function drawLuck(){
+  const cv=document.getElementById('luckCanvas');const {ctx,w,h}=setup(cv);
+  ctx.clearRect(0,0,w,h);
+  const padL=34,padR=18,padT=24,padB=42;
+  const iw=w-padL-padR, ih=h-padT-padB;
+  const n=luck.length;
+  const X=i=>padL+iw*i/(n-1);
+  const Y=v=>padT+ih*(1-v/100);
+  // 网格
+  ctx.strokeStyle='#1a2433';ctx.lineWidth=1;ctx.font='10px monospace';ctx.fillStyle='#5a6678';
+  for(let g=0;g<=100;g+=25){const y=Y(g);ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(w-padR,y);ctx.stroke();
+    ctx.fillText(g,6,y+3);}
+  // 折线
+  ctx.beginPath();
+  luck.forEach((p,i)=>{const x=X(i),y=Y(p.v);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
+  ctx.strokeStyle='#d4af37';ctx.lineWidth=2.4;ctx.stroke();
+  // 渐变填充
+  const grad=ctx.createLinearGradient(0,padT,0,h-padB);
+  grad.addColorStop(0,'rgba(212,175,55,.22)');grad.addColorStop(1,'rgba(212,175,55,0)');
+  ctx.lineTo(X(n-1),h-padB);ctx.lineTo(X(0),h-padB);ctx.closePath();ctx.fillStyle=grad;ctx.fill();
+  // 点 + 标签
+  luck.forEach((p,i)=>{
+    const x=X(i),y=Y(p.v);
+    ctx.beginPath();ctx.arc(x,y,p.now?6:4,0,7);
+    ctx.fillStyle=p.now?'#d4af37':'#5aa0e0';ctx.fill();
+    if(p.now){ctx.strokeStyle='#e8c468';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,10,0,7);ctx.stroke();}
+    ctx.fillStyle=p.now?'#e8c468':'#9aa4b6';ctx.font=(p.now?'bold ':'')+'11px sans-serif';
+    ctx.textAlign='center';ctx.fillText(p.gz,x,h-24);
+    ctx.fillStyle='#5a6678';ctx.font='9px monospace';ctx.fillText(p.y,x,h-12);
+  });
+  // 当前标注
+  const cur=luck.find(p=>p.now),ci=luck.indexOf(cur);
+  ctx.fillStyle='#e8c468';ctx.font='bold 10px sans-serif';ctx.textAlign='center';
+  ctx.fillText('▼ 现在',X(ci),Y(cur.v)-16);
+}
+
+/* ===== 流年 K 线 ===== */
+// o,h,l,c = 该年"自身能量/心境"示意(0-100),非财富/非择时
+const kdata=[
+ {y:'2024',gz:'甲辰',o:45,h:55,l:40,c:50,key:'养'},
+ {y:'2025',gz:'乙巳',o:50,h:62,l:48,c:60,key:'升'},
+ {y:'2026',gz:'丙午',o:60,h:75,l:55,c:70,key:'定'},
+ {y:'2027',gz:'丁未',o:70,h:82,l:64,c:76,key:'厚'},
+ {y:'2028',gz:'戊申',o:76,h:78,l:58,c:62,key:'化'},
+ {y:'2029',gz:'己酉',o:62,h:66,l:48,c:52,key:'朴'},
+ {y:'2030',gz:'庚戌',o:52,h:60,l:44,c:50,key:'藏'},
+ {y:'2031',gz:'辛亥',o:50,h:58,l:40,c:46,key:'守'},
+ {y:'2032',gz:'壬子',o:46,h:64,l:44,c:60,key:'复'},
+ {y:'2033',gz:'癸丑',o:60,h:64,l:48,c:52,key:'静'}
+];
+// 人生"积累感受"线——诚实:有起有落,非一路上涨
+const wealth=[50,56,66,78,72,66,70,64,74,70];
+function drawKline(){
+  const cv=document.getElementById('klineCanvas');const {ctx,w,h}=setup(cv);
+  ctx.clearRect(0,0,w,h);
+  const padL=30,padR=14,padT=22,padB=48;
+  const iw=w-padL-padR, ih=h-padT-padB;
+  const Y=v=>padT+ih*(1-v/100);
+  const n=kdata.length, slot=iw/n, cw=Math.min(18,slot*0.5);
+  // 网格
+  ctx.strokeStyle='#1a2433';ctx.lineWidth=1;ctx.font='10px monospace';ctx.fillStyle='#5a6678';ctx.textAlign='left';
+  for(let g=0;g<=100;g+=25){const y=Y(g);ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(w-padR,y);ctx.stroke();ctx.fillText(g,4,y+3);}
+  // 蜡烛
+  kdata.forEach((d,i)=>{
+    const x=padL+slot*i+slot/2;
+    const up=d.c>=d.o;const col=up?'#2ec07a':'#e5524f';
+    ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.moveTo(x,Y(d.h));ctx.lineTo(x,Y(d.l));ctx.stroke();
+    const yo=Y(d.o),yc=Y(d.c);
+    const top=Math.min(yo,yc),bh=Math.max(2,Math.abs(yc-yo));
+    if(up){ctx.fillRect(x-cw/2,top,cw,bh);}else{ctx.strokeRect(x-cw/2,top,cw,bh);ctx.globalAlpha=.25;ctx.fillRect(x-cw/2,top,cw,bh);ctx.globalAlpha=1;}
+    // 字诀
+    ctx.fillStyle='#8a7330';ctx.font='10px sans-serif';ctx.textAlign='center';
+    ctx.fillText(d.key,x,Y(d.h)-6);
+    // 年份/干支
+    ctx.fillStyle='#9aa4b6';ctx.font='10px sans-serif';ctx.fillText(d.gz,x,h-26);
+    ctx.fillStyle='#5a6678';ctx.font='9px monospace';ctx.fillText(d.y,x,h-14);
+  });
+  // 财富累计线
+  ctx.beginPath();
+  wealth.forEach((v,i)=>{const x=padL+slot*i+slot/2,y=Y(v);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
+  ctx.strokeStyle='#e8c468';ctx.lineWidth=2;ctx.setLineDash([5,3]);ctx.stroke();ctx.setLineDash([]);
+  wealth.forEach((v,i)=>{const x=padL+slot*i+slot/2,y=Y(v);ctx.beginPath();ctx.arc(x,y,2.4,0,7);ctx.fillStyle='#e8c468';ctx.fill();});
+}
+
+/* ===== 六龙时间线 ===== */
+const dragons=[
+ {st:'潜龙',py:'勿用',yr:'1996–2016 · 癸酉/甲戌',d:'童年到求学期。潜伏蓄势,看似没动静,其实在长根。'},
+ {st:'见龙',py:'在田',yr:'2016–2026 · 乙亥',d:'踏入社会、初露头角,在田间立足。学会被看见。'},
+ {st:'惕龙',py:'乾乾',yr:'2026–2031 · 丙子前段',d:'当前。又勤奋又警醒的关键期,丙火来帮身。稳住这一段,后面才能跃。',now:true},
+ {st:'跃龙',py:'在渊',yr:'2031–2040 · 丙子后段/丁丑',d:'蓄够了势,出现跃迁的机会。敢于纵身一跃。'},
+ {st:'飞龙',py:'在天',yr:'2040–2050 · 丁丑/戊寅',d:'事业与自我的大成期,飞龙在天,水到渠成。'},
+ {st:'亢龙',py:'有悔',yr:'2050以后',d:'提醒:盈不可久。懂得收、懂得给,是更高的赢。'}
+];
+(function(){
+  const box=document.getElementById('dragon');
+  box.innerHTML=dragons.map(d=>`
+    <div class="drow${d.now?' now':''}">
+      <div class="stage"><b>${d.st}</b><span>${d.py}</span></div>
+      <div class="desc">${d.d}${d.now?'<span class="nowbadge">你在这里</span>':''}</div>
+    </div>`).join('');
+})();
+
+window.addEventListener('resize',()=>{if(secs.see.classList.contains('on')){drawLuck();drawKline();}});
+</script>
+</body>
+</html>

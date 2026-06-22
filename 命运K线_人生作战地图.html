@@ -29,9 +29,10 @@
   /* tabs */
   .tabs{position:sticky;top:0;z-index:20;display:flex;gap:6px;padding:12px 0;
     background:linear-gradient(var(--ink) 70%,rgba(8,11,17,0));margin-bottom:6px}
-  .tab{flex:1;text-align:center;padding:11px 4px;border:1px solid var(--line);
-    border-radius:10px;background:var(--panel2);color:var(--txt-dim);font-size:14px;
-    letter-spacing:2px;cursor:pointer;transition:.18s;user-select:none}
+  .tabs{gap:5px}
+  .tab{flex:1;text-align:center;padding:11px 2px;border:1px solid var(--line);
+    border-radius:10px;background:var(--panel2);color:var(--txt-dim);font-size:13.5px;
+    letter-spacing:1px;cursor:pointer;transition:.18s;user-select:none}
   .tab:hover{border-color:var(--gold-dim)}
   .tab.on{color:var(--ink);background:linear-gradient(180deg,var(--gold2),var(--gold));
     border-color:var(--gold);font-weight:600;box-shadow:0 0 18px rgba(212,175,55,.25)}
@@ -137,6 +138,7 @@
   <div class="tab on" data-t="now">当下</div>
   <div class="tab" data-t="chart">命盘</div>
   <div class="tab" data-t="see">看透</div>
+  <div class="tab" data-t="fate">正缘</div>
   <div class="tab" data-t="plan">蓝图</div>
 </nav>
 
@@ -263,6 +265,76 @@
   </div>
 </section>
 
+<!-- ================= 正缘 ================= -->
+<section class="fate">
+  <div class="card" style="background:linear-gradient(135deg,#1a1320,#0e1622);border-color:var(--gold-dim)">
+    <h2><span class="dot"></span>正缘缘分 · 写给丁火的一封信</h2>
+    <p>先说最要紧的一句:<b style="color:var(--gold2)">你不是"没人爱"的命,你是"缘分有情、只待时机与状态"的命。</b></p>
+    <p>因为你的日主 <b>丁</b> 和你的夫星 <b>壬</b>,在命里天然 <b style="color:var(--gold2)">丁壬相合</b>——
+       这是八字中最直接的一种"有情"。它不保证早晚,但它说明:<b>对的人会被你吸引,你也会被对的人吸引</b>,
+       这份磁场,你生来就有。</p>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>你的夫星画像 · 壬水正官</h2>
+    <p>你的夫星是 <b style="color:var(--gold2)">壬水正官</b>——壬水像大江大海,<b>聪明、有格局、能包容、流动而不死板</b>;
+       正官代表 <b>正派、有担当、可托付</b> 的关系。所以适合你的,往往是
+       <b>一个稳得住、有责任感、心里有容量的人</b>,而不只是条件漂亮的人。</p>
+    <p><b style="color:var(--gold2)">丁壬合化木</b>——你和对的人在一起,会"合"出 <b>木</b>。
+       而木(印)正是你这盏灯的 <b style="color:var(--green)">喜用、你的养分、你的油</b>。
+       翻译过来就是:<b>对的关系对你是"补药"</b>,会让你变安定、变厚、有底气。
+       这是命里非常美的一条信息。</p>
+    <p class="muted">提醒:壬水官星在申月坐财(财生官),夫星能量很旺。身偏弱的你,容易有
+       "对方很好、但我配不上 / 我扛不住"的感觉。这不是事实,是状态——<b>先把自己养厚,这感觉就化了</b>。</p>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>配偶宫 · 日支「未」藏着你真正想要的</h2>
+    <p>你的配偶宫是日支 <b style="color:var(--gold2)">未</b>,里面藏着
+       <b>丁(自己人的温度)</b> 和 <b>乙木(印·滋养)</b>。</p>
+    <p>这说明你内心真正想要的伴侣,不是"条件清单"打勾的那种,而是
+       <b style="color:var(--gold2)">能懂你、能滋养你、给你安全感</b> 的人。
+       未又是你的能量根之一——意味着 <b>一段对的关系,会让你扎下根、稳下来</b>,
+       不是负担,是你的地基。</p>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>缘分能量节律 · 何时该把自己打开</h2>
+    <canvas id="fateCanvas" height="240"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--blue)"></i>夫星(水)能量主题活跃度</span>
+      <span><i style="background:var(--gold)"></i>当前阶段</span>
+    </div>
+    <p style="margin-top:12px">你 <b style="color:var(--gold2)">2026 年起走的丙子大运</b>,命中的 申、辰 逢「子」相牵动,
+       <b>夫星(水)的能量被明显打开</b>——这是适合你 <b>主动去被看见、用心经营关系</b> 的一段时间。
+       水旺的流年(如 2031 辛亥、2032 壬子)关系主题会更鲜明。</p>
+    <div class="disclaimer" style="margin-top:14px">
+      <b>请认真读这句:</b>上图与上面这段,讲的是「<b>什么时候你更适合把自己打开、主动经营关系</b>」,
+      <b>不是"你哪一年一定会结婚"</b>。命盘不预测婚配对象,也不预测具体时间——
+      <b>能不能遇见、能不能走到一起,取决于你的行动、相处和选择,不取决于任何一个字。</b>
+      请别用它去催自己,更别用它给某个具体的人贴标签。
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="dot"></span>正缘功课 · 你能做的五件事</h2>
+    <ul class="learn">
+      <li><b style="color:var(--gold2)">先站稳自己</b>:身弱补印比——一个不慌、有底气的你,才接得住那段"很旺"的缘。状态比时机更重要。</li>
+      <li><b style="color:var(--gold2)">让自己被看见</b>:丁火不必变成太阳,但要让对的人看见你的暖。正缘从"出现在能被看见的地方"开始。</li>
+      <li><b style="color:var(--gold2)">分辨补药与消耗</b>:让你变厚、变安定的关系(合木/印)是补药;让你不断付出、耗油、自我怀疑的,要警惕——别用硬扛证明爱。</li>
+      <li><b style="color:var(--gold2)">课题分离</b>:他的情绪是他的课题,你不必全揽。身弱最忌在关系里硬扛。</li>
+      <li><b style="color:var(--gold2)">换掉一句口头禅</b>:把"我不够好"换成"我正在变厚"。你值得一段滋养你的关系,而不是一段考验你的关系。</li>
+    </ul>
+  </div>
+
+  <div class="disclaimer">
+    <b>关于感情的免责声明:</b>本页所有内容仅作为 <b>认识自己、安顿心情的框架</b>,
+    帮你更温柔地理解自己在关系里的样子与需要。<b>它不预测你的婚配对象、不预测时间、不保证任何结果。</b>
+    真实的缘分靠相处、靠选择、靠两个人共同经营。请不要因为这页而焦虑或催促自己,
+    也不要拿它去判定某一个具体的人。<b>无论何时遇见,你都值得被温柔以待。</b>
+  </div>
+</section>
+
 <!-- ================= 蓝图 ================= -->
 <section class="plan">
   <div class="card">
@@ -329,12 +401,14 @@
 /* ===== tab 切换 ===== */
 const tabs=document.querySelectorAll('.tab');
 const secs={now:document.querySelector('.now'),chart:document.querySelector('.chart'),
-            see:document.querySelector('.see'),plan:document.querySelector('.plan')};
+            see:document.querySelector('.see'),fate:document.querySelector('.fate'),
+            plan:document.querySelector('.plan')};
 tabs.forEach(t=>t.onclick=()=>{
   tabs.forEach(x=>x.classList.remove('on'));t.classList.add('on');
   Object.values(secs).forEach(s=>s.classList.remove('on'));
   secs[t.dataset.t].classList.add('on');
   if(t.dataset.t==='see'){drawLuck();drawKline();}
+  if(t.dataset.t==='fate'){drawFate();}
 });
 
 /* ===== 今日只做一件事 ===== */
@@ -489,6 +563,43 @@ function drawKline(){
   wealth.forEach((v,i)=>{const x=padL+slot*i+slot/2,y=Y(v);ctx.beginPath();ctx.arc(x,y,2.4,0,7);ctx.fillStyle='#e8c468';ctx.fill();});
 }
 
+/* ===== 缘分能量节律(夫星·水 活跃度示意,非预测) ===== */
+const fate=[
+ {gz:'癸酉',y:2006,v:30,age:'18'},
+ {gz:'甲戌',y:2016,v:26,age:'28'},
+ {gz:'乙亥',y:2026,v:52,age:'37'},
+ {gz:'丙子',y:2031,v:80,age:'42',now:true},
+ {gz:'丁丑',y:2041,v:44,age:'52'},
+ {gz:'戊寅',y:2051,v:38,age:'62'}
+];
+function drawFate(){
+  const cv=document.getElementById('fateCanvas');const {ctx,w,h}=setup(cv);
+  ctx.clearRect(0,0,w,h);
+  const padL=20,padR=16,padT=26,padB=40;
+  const iw=w-padL-padR, ih=h-padT-padB;
+  const n=fate.length, slot=iw/n, bw=Math.min(34,slot*0.5);
+  const Y=v=>padT+ih*(1-v/100);
+  // 基线
+  ctx.strokeStyle='#1a2433';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(padL,h-padB);ctx.lineTo(w-padR,h-padB);ctx.stroke();
+  // 柱 + 顶端连线
+  ctx.beginPath();
+  fate.forEach((p,i)=>{const x=padL+slot*i+slot/2,y=Y(p.v);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});
+  ctx.strokeStyle='rgba(90,160,224,.5)';ctx.lineWidth=1.6;ctx.stroke();
+  fate.forEach((p,i)=>{
+    const x=padL+slot*i+slot/2, y=Y(p.v), base=h-padB;
+    const grad=ctx.createLinearGradient(0,y,0,base);
+    if(p.now){grad.addColorStop(0,'rgba(232,196,104,.85)');grad.addColorStop(1,'rgba(232,196,104,.08)');}
+    else{grad.addColorStop(0,'rgba(90,160,224,.7)');grad.addColorStop(1,'rgba(90,160,224,.06)');}
+    ctx.fillStyle=grad;ctx.fillRect(x-bw/2,y,bw,base-y);
+    ctx.beginPath();ctx.arc(x,y,p.now?5:3.4,0,7);ctx.fillStyle=p.now?'#e8c468':'#5aa0e0';ctx.fill();
+    if(p.now){ctx.fillStyle='#e8c468';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.fillText('▼ 现在',x,y-12);}
+    ctx.fillStyle=p.now?'#e8c468':'#9aa4b6';ctx.font=(p.now?'bold ':'')+'11px sans-serif';ctx.textAlign='center';
+    ctx.fillText(p.gz,x,h-22);
+    ctx.fillStyle='#5a6678';ctx.font='9px monospace';ctx.fillText('约'+p.age+'岁',x,h-10);
+  });
+}
+
 /* ===== 六龙时间线 ===== */
 const dragons=[
  {st:'潜龙',py:'勿用',yr:'1996–2016 · 癸酉/甲戌',d:'童年到求学期。潜伏蓄势,看似没动静,其实在长根。'},
@@ -507,7 +618,10 @@ const dragons=[
     </div>`).join('');
 })();
 
-window.addEventListener('resize',()=>{if(secs.see.classList.contains('on')){drawLuck();drawKline();}});
+window.addEventListener('resize',()=>{
+  if(secs.see.classList.contains('on')){drawLuck();drawKline();}
+  if(secs.fate.classList.contains('on')){drawFate();}
+});
 </script>
 </body>
 </html>
